@@ -523,7 +523,7 @@ def render_logo(width="180px", center=False):
     origin = "center center" if center else "left center"
     
     # Counteract baked-in left padding for the top bar logo so it aligns flush left with the tagline
-    shift_left = "" if center else "margin-left: -28%;"
+    shift_left = ""
     
     is_dark = st.session_state.get("dark_mode", True)
     
