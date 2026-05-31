@@ -277,7 +277,7 @@ def gauge_chart(score: float, title: str = "OVERALL PSYCH SCORE") -> go.Figure:
         title=dict(text=title, font=dict(size=12, color=muted_color), x=0.5),
         annotations=[dict(
             text="High Performance",
-            x=0.5, y=0.22, xref="paper", yref="paper",
+            x=0.5, y=0.08, xref="paper", yref="paper",
             font=dict(size=12, color=muted_color, family=FONT_FAMILY),
             showarrow=False,
         )],
