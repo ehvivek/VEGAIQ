@@ -278,13 +278,18 @@ st.markdown('<div id="section-08" style="font-family:\'Share Tech Mono\',monospa
             unsafe_allow_html=True)
 col_radio, col_sector = st.columns([1.5, 1], gap="medium")
 with col_radio:
-    # Extract actual radio transmissions from the dataframe
     radio_laps = df[df['radio_text'] != "No transmission."]
     radio_rows = ""
     for _, row in radio_laps.head(4).iterrows():
         lap_idx = int(row['lap'])
-        text = row['radio_text']
-        radio_rows += f'<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">{lap_idx}</td><td style="padding:6px 4px;">"{text}"</td><td style="color:{d_color};">Logged</td></tr>'
+        text = str(row['radio_text']).strip('"\'')
+        
+        if text.startswith("http") and text.endswith(".mp3"):
+            display_text = f'<audio controls src="{text}" style="height:30px; max-width:200px;"></audio>'
+        else:
+            display_text = f'"{text}"'
+            
+        radio_rows += f'<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">{lap_idx}</td><td style="padding:6px 4px;">{display_text}</td><td style="color:{d_color};">Logged</td></tr>'
 
     st.markdown(f"""
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;height:100%;">

@@ -268,18 +268,23 @@ with col_ev:
                     'font-size:0.75rem;">No major events on this lap</div>', unsafe_allow_html=True)
 
     # Radio transcript
-    radio_text = str(lap_data.get("radio_text", ""))
+    radio_text = str(lap_data.get("radio_text", "")).strip('"\'')
     if radio_text and radio_text not in ["No transmission.", ""]:
+        
+        if radio_text.startswith("http") and radio_text.endswith(".mp3"):
+            msg_html = f'<div style="color:{d_color};">{driver["code"]}: [AUDIO LOGGED]</div><audio controls src="{radio_text}" style="height:30px; margin-top:10px; width:100%;"></audio>'
+        else:
+            msg_html = f'<div style="color:{d_color};">{driver["code"]}: "{radio_text}"</div>'
+
         st.markdown(f"""
-<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid #4ADE80;
-            border-radius:6px;padding:0.8rem 1rem;margin-top:0.8rem;">
-  <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:#4ADE80;margin-bottom:0.4rem;">
-    COMM TRANSCRIPT -- {timestamp}</div>
-  <div style="font-family:'Share Tech Mono',monospace;font-size:0.8rem;color:#4ADE80;line-height:1.8;">
-    <div>ENGINEER: "Copy, we need to push."</div>
-    <div style="color:{d_color};">{driver['code']}: "{radio_text}"</div>
-  </div>
-</div>""", unsafe_allow_html=True)
+        <div style="background:#0A0A0A;border:1px solid #333;border-radius:6px;padding:1rem;font-family:'Share Tech Mono',monospace;">
+            <div style="color:#555;font-size:0.7rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;">
+                <span>> RADIO_TRANSCRIPT</span>
+                <span>{driver['team']} PIT WALL</span>
+            </div>
+            {msg_html}
+        </div>
+        """, unsafe_allow_html=True)
 
 with col_zc:
     st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.65rem;'
