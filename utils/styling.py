@@ -86,11 +86,18 @@ button[aria-label="Expand sidebar"] {
     padding: 0.2rem !important;
     margin: 0.5rem !important;
 }
+[data-testid="collapsedControl"],
+[data-testid="stSidebarCollapsedControl"],
+.stSidebarCollapsedControl,
+button[aria-label="Expand sidebar"] {
+    color: var(--text-primary) !important;
+}
 [data-testid="collapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg,
 .stSidebarCollapsedControl svg,
 button[aria-label="Expand sidebar"] svg {
     fill: var(--text-primary) !important;
+    stroke: var(--text-primary) !important;
 }
 
 /* == HIDE Streamlit auto-generated page navigation == */
@@ -510,8 +517,8 @@ def render_logo(width="180px", center=False):
     justify = "center" if center else "flex-start"
     origin = "center center" if center else "left center"
     
-    # Removed the large negative margin that was cutting off the VEGAIQ logo
-    shift_left = ""
+    # Counteract baked-in left padding for the top bar logo so it aligns flush left with the tagline
+    shift_left = "" if center else "margin-left: -28%;"
     
     is_dark = st.session_state.get("dark_mode", True)
     
@@ -524,9 +531,9 @@ def render_logo(width="180px", center=False):
             data = base64.b64encode(f.read()).decode("utf-8")
         # Smart adaptive filter based on current theme
         st.markdown(f"""
-        <div style="display:flex; align-items:center; justify-content:{justify}; height:50px; margin-bottom:1rem; pointer-events:none; user-select:none; {shift_left}">
-          <img src="data:image/png;base64,{data}" style="width:auto; max-height:40px; {margin} {image_css} pointer-events:none; margin-right: 15px;">
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:2.2rem;letter-spacing:0.05em;line-height:1; margin-top: 4px;">VEGAIQ</div>
+        <div style="display:flex; align-items:center; justify-content:{justify}; height:50px; margin-bottom:1rem; pointer-events:none; user-select:none;">
+          <img src="data:image/png;base64,{data}" style="width:auto; max-height:40px; {margin} {shift_left} {image_css} pointer-events:none; margin-right: 15px;">
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.8rem;letter-spacing:0.05em;line-height:1;">VEGAIQ</div>
         </div>""", unsafe_allow_html=True)
     else:
         st.markdown(f"""
