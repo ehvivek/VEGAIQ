@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 st.set_page_config(
-    page_title="PitMind | Performance Dashboard",
+    page_title="VEGAIQ | Performance Dashboard",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -118,7 +118,7 @@ with left_col:
   <div style="font-family:'Rajdhani',sans-serif;font-size:0.95rem;color:#888;
               line-height:1.6;max-width:380px;">
     What goes on inside an F1 driver's mind during a race?
-    PitMind reveals the psychological story lap by lap -- stress patterns,
+    VEGAIQ reveals the psychological story lap by lap -- stress patterns,
     decision quality, and mental fatigue that no camera shows.
   </div>
 </div>""", unsafe_allow_html=True)

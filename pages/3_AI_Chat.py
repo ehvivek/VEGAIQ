@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 st.set_page_config(
-    page_title="PitMind | AI Chat",
+    page_title="VEGAIQ | AI Chat",
     layout="wide",
     initial_sidebar_state="expanded",
 )
