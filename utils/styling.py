@@ -89,15 +89,20 @@ button[aria-label="Expand sidebar"] {
 [data-testid="collapsedControl"],
 [data-testid="stSidebarCollapsedControl"],
 .stSidebarCollapsedControl,
-button[aria-label="Expand sidebar"] {
+button[aria-label="Expand sidebar"],
+button[kind="header"] {
     color: var(--text-primary) !important;
 }
 [data-testid="collapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg,
 .stSidebarCollapsedControl svg,
-button[aria-label="Expand sidebar"] svg {
+button[aria-label="Expand sidebar"] svg,
+button[kind="header"] svg,
+[data-testid="collapsedControl"] path,
+button[kind="header"] path {
     fill: var(--text-primary) !important;
     stroke: var(--text-primary) !important;
+    color: var(--text-primary) !important;
 }
 
 /* == HIDE Streamlit auto-generated page navigation == */
