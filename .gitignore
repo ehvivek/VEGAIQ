@@ -1,0 +1,43 @@
+# PitMind .gitignore
+
+# Environment — NEVER push API keys
+.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Trained ML models (regenerate with python core/models.py)
+models/*.pkl
+
+# FastF1 cache
+cache/
+*.cache
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Data files (large)
+data/verstappen_abu_dhabi_2024.csv
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Streamlit secrets
+.streamlit/secrets.toml
+
+# Temp audio files
+*.wav
+*.mp3
+temp_audio/

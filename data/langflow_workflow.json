@@ -1,0 +1,144 @@
+{
+  "name": "PitMind F1 Psychological Analysis Pipeline",
+  "description": "Full AI pipeline: OpenF1 → FastF1 → ML Models → Biometrics → IBM Granite → Output",
+  "nodes": [
+    {
+      "id": "openf1_node",
+      "type": "DataFetcher",
+      "label": "OpenF1 REST API",
+      "position": {"x": 100, "y": 100},
+      "config": {
+        "endpoint": "https://api.openf1.org/v1",
+        "driver": "VER",
+        "driver_number": 1,
+        "year": 2024,
+        "gp": "Abu Dhabi",
+        "data_types": ["team_radio", "race_control", "position"]
+      }
+    },
+    {
+      "id": "fastf1_node",
+      "type": "DataFetcher",
+      "label": "FastF1 Telemetry",
+      "position": {"x": 100, "y": 250},
+      "config": {
+        "year": 2024,
+        "gp": "Abu Dhabi",
+        "session": "R",
+        "driver": "VER",
+        "data_types": ["laps", "sector_times", "speed_traps", "tyre_data"]
+      }
+    },
+    {
+      "id": "whisper_node",
+      "type": "AudioTranscriber",
+      "label": "OpenAI Whisper STT",
+      "position": {"x": 100, "y": 400},
+      "config": {
+        "model": "base",
+        "language": "en",
+        "input": "user_audio_or_radio_urls"
+      }
+    },
+    {
+      "id": "merge_node",
+      "type": "DataMerger",
+      "label": "Merge & Enrich Data",
+      "position": {"x": 400, "y": 250},
+      "config": {
+        "join_on": "lap_number",
+        "output_format": "unified_lap_schema"
+      }
+    },
+    {
+      "id": "stress_model",
+      "type": "MLModel",
+      "label": "Model 1: Stress Index",
+      "position": {"x": 700, "y": 100},
+      "config": {
+        "algorithm": "GradientBoostingRegressor",
+        "model_path": "models/stress_model.pkl",
+        "features": ["gap_change_last3", "safety_car", "yellow_flag", "tyre_age", "tyre_compound", "radio_sentiment", "position_change", "laps_remaining", "gap_to_leader"],
+        "output": "stress_index",
+        "range": [0, 10]
+      }
+    },
+    {
+      "id": "quality_model",
+      "type": "MLModel",
+      "label": "Model 2: Decision Quality",
+      "position": {"x": 700, "y": 250},
+      "config": {
+        "algorithm": "RandomForestRegressor",
+        "model_path": "models/quality_model.pkl",
+        "features": ["lap_time_delta", "sector1_delta", "sector2_delta", "sector3_delta", "speed_fl", "speed_i1", "speed_i2", "position_delta", "tyre_age"],
+        "output": "decision_quality",
+        "range": [0, 10]
+      }
+    },
+    {
+      "id": "fatigue_model",
+      "type": "MLModel",
+      "label": "Model 3: Mental Fatigue",
+      "position": {"x": 700, "y": 400},
+      "config": {
+        "algorithm": "Ridge",
+        "model_path": "models/fatigue_model.pkl",
+        "features": ["stint_lap", "cumulative_stress", "radio_freq", "lap_time_trend", "total_laps", "avg_speed_drop", "sector_consistency"],
+        "output": "mental_fatigue",
+        "range": [0, 10]
+      }
+    },
+    {
+      "id": "biometrics_node",
+      "type": "BiometricGenerator",
+      "label": "Synthetic Biometrics",
+      "position": {"x": 1000, "y": 250},
+      "config": {
+        "module": "core.synthetic",
+        "method": "generate_biometrics",
+        "outputs": ["heart_rate_est", "mental_state", "eye_tracking", "reaction_time_delta", "situational_awareness"]
+      }
+    },
+    {
+      "id": "granite_node",
+      "type": "IBMGranite",
+      "label": "IBM Granite 3.1 Analysis",
+      "position": {"x": 1300, "y": 250},
+      "config": {
+        "model": "ibm/granite-13b-chat-v2",
+        "url": "https://us-south.ml.cloud.ibm.com",
+        "functions": ["analyze_lap", "chat_response", "analyze_sentiment", "generate_report"],
+        "max_tokens": 300,
+        "temperature": 0.7
+      }
+    },
+    {
+      "id": "output_node",
+      "type": "StreamlitOutput",
+      "label": "Streamlit UI Output",
+      "position": {"x": 1600, "y": 250},
+      "config": {
+        "pages": ["Home", "Dashboard", "LapDive", "Chat", "Reports"],
+        "charts": "Plotly",
+        "theme": "dark"
+      }
+    }
+  ],
+  "edges": [
+    {"from": "openf1_node", "to": "merge_node", "label": "radio + events"},
+    {"from": "fastf1_node", "to": "merge_node", "label": "lap telemetry"},
+    {"from": "whisper_node", "to": "merge_node", "label": "transcripts"},
+    {"from": "merge_node", "to": "stress_model", "label": "features"},
+    {"from": "merge_node", "to": "quality_model", "label": "features"},
+    {"from": "merge_node", "to": "fatigue_model", "label": "features"},
+    {"from": "stress_model", "to": "biometrics_node", "label": "stress_index"},
+    {"from": "quality_model", "to": "biometrics_node", "label": "decision_quality"},
+    {"from": "fatigue_model", "to": "biometrics_node", "label": "mental_fatigue"},
+    {"from": "biometrics_node", "to": "granite_node", "label": "enriched_lap_data"},
+    {"from": "granite_node", "to": "output_node", "label": "analysis + responses"}
+  ],
+  "version": "1.0",
+  "created_for": "IBM SkillsBuild AI Builders Challenge May 2026",
+  "team": "RGIPT Jais"
+}
