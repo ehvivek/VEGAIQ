@@ -1,7 +1,7 @@
 # PitMind .gitignore
 
-# Environment — NEVER push API keys
-.env
+# Environment
+# .env is tracked intentionally for Streamlit Cloud deployment
 
 # Python cache
 __pycache__/
