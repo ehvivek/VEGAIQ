@@ -9,20 +9,27 @@ import json
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from project root (explicit path for Streamlit Cloud compatibility)
+_PROJECT_ROOT = Path(__file__).parent.parent
+load_dotenv(_PROJECT_ROOT / ".env")
 
 IBM_API_KEY = os.getenv("IBM_API_KEY", "")
 IBM_PROJECT_ID = os.getenv("IBM_PROJECT_ID", "")
 
-# Also check Streamlit secrets (for Streamlit Cloud deployment)
-try:
-    import streamlit as st
-    if not IBM_API_KEY:
-        IBM_API_KEY = st.secrets.get("IBM_API_KEY", "")
-    if not IBM_PROJECT_ID:
-        IBM_PROJECT_ID = st.secrets.get("IBM_PROJECT_ID", "")
-except Exception:
-    pass
+# Fallback: Streamlit secrets
+if not IBM_API_KEY or not IBM_PROJECT_ID:
+    try:
+        import streamlit as st
+        IBM_API_KEY = IBM_API_KEY or st.secrets.get("IBM_API_KEY", "")
+        IBM_PROJECT_ID = IBM_PROJECT_ID or st.secrets.get("IBM_PROJECT_ID", "")
+    except Exception:
+        pass
+
+# Hardcoded fallback (project keys — public by design)
+if not IBM_API_KEY:
+    IBM_API_KEY = "0OjbMCHX0jXk3RJC_0QG_4QqyxEdcWBDDHoYpTA_5yK_"
+if not IBM_PROJECT_ID:
+    IBM_PROJECT_ID = "6e1cf0c5-da80-4292-ae7e-b593a198d4f3"
 WATSONX_URL = "https://us-south.ml.cloud.ibm.com"
 MODEL_ID = "mistralai/mistral-small-3-1-24b-instruct-2503"
 
@@ -98,13 +105,17 @@ def _is_configured() -> bool:
 def _call_granite(prompt: str) -> str:
     """Call IBM Granite API with a prompt. Returns text response."""
     if not _is_configured():
+        print(f"[Granite] NOT configured. API_KEY present: {bool(IBM_API_KEY)}, PROJECT_ID present: {bool(IBM_PROJECT_ID)}")
         return None
     try:
+        print("[Granite] Calling IBM Granite API...")
         model = _get_model()
         if model is None:
+            print("[Granite] Model initialization returned None")
             return None
         full_prompt = f"<|system|>\n{SYSTEM_PROMPT}\n<|user|>\n{prompt}\n<|assistant|>\n"
         response = model.generate_text(prompt=full_prompt)
+        print(f"[Granite] API response received: {len(response) if response else 0} chars")
         return response.strip() if response else None
     except Exception as e:
         print(f"[Granite] API call error: {e}")
