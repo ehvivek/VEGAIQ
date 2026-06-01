@@ -82,10 +82,7 @@ with top_r:
             st.session_state.selected_lap = max(1, lap_num - 1)
             st.rerun()
     with ni:
-        new_lap = st.number_input("Lap", 1, total_laps, lap_num, label_visibility="collapsed", key="lap_in")
-        if new_lap != lap_num:
-            st.session_state.selected_lap = new_lap
-            st.rerun()
+        st.number_input("Lap", 1, total_laps, key="selected_lap", label_visibility="collapsed")
     with nr:
         if st.button("NEXT >", key="next", use_container_width=True):
             st.session_state.selected_lap = min(total_laps, lap_num + 1)

@@ -492,8 +492,8 @@ def render_logo(width="180px", center=False):
     justify = "center" if center else "flex-start"
     origin = "center center" if center else "left center"
     
-    # Counteract baked-in left padding for the top bar logo so it aligns flush left with the tagline
-    shift_left = "" if center else "margin-left: -28%;"
+    # Remove excessive negative margin that hides the logo on the landing page
+    shift_left = ""
     
     is_dark = st.session_state.get("dark_mode", True)
     
@@ -508,7 +508,7 @@ def render_logo(width="180px", center=False):
         st.markdown(f"""
         <div style="display:flex; align-items:center; justify-content:{justify}; height:50px; margin-bottom:1rem; pointer-events:none; user-select:none;">
           <img src="data:image/png;base64,{data}" style="width:auto; max-height:40px; {margin} {shift_left} {image_css} pointer-events:none; margin-right: 15px;">
-          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.8rem;letter-spacing:0.05em;line-height:1;">VEGAIQ</div>
+          <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1.8rem;letter-spacing:0.05em;line-height:1; transform: translateY(-1px);">VEGAIQ</div>
         </div>""", unsafe_allow_html=True)
     else:
         st.markdown(f"""
