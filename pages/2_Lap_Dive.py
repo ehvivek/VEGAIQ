@@ -79,10 +79,14 @@ with top_r:
     nl, ni, nr = st.columns([1.2, 1.5, 1.2])
 
     def go_prev():
-        st.session_state.selected_lap = max(1, st.session_state.selected_lap - 1)
+        new_val = max(1, st.session_state.selected_lap - 1)
+        st.session_state.selected_lap = new_val
+        st.session_state._lap_input = new_val
 
     def go_next():
-        st.session_state.selected_lap = min(total_laps, st.session_state.selected_lap + 1)
+        new_val = min(total_laps, st.session_state.selected_lap + 1)
+        st.session_state.selected_lap = new_val
+        st.session_state._lap_input = new_val
 
     def on_lap_input():
         st.session_state.selected_lap = st.session_state._lap_input
