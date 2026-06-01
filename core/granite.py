@@ -31,7 +31,11 @@ if not IBM_API_KEY:
 if not IBM_PROJECT_ID:
     IBM_PROJECT_ID = "6e1cf0c5-da80-4292-ae7e-b593a198d4f3"
 WATSONX_URL = "https://us-south.ml.cloud.ibm.com"
-MODEL_ID = "mistralai/mistral-small-3-1-24b-instruct-2503"
+WATSONX_MODEL_ID = "ibm/granite-3-8b-instruct"
+
+# HuggingFace free inference with real IBM Granite
+HF_MODEL_ID = "ibm-granite/granite-3.1-8b-instruct"
+HF_API_URL = f"https://router.huggingface.co/hf-inference/models/{HF_MODEL_ID}/v1/chat/completions"
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 CACHE_FILE = DATA_DIR / "granite_cache.json"
@@ -69,8 +73,41 @@ CACHED_CHAT = {
 
 
 # ─────────────────────────────────────────────
-# IBM Granite API client (direct HTTP — no SDK needed)
+# IBM Granite API client
+# Primary: HuggingFace free inference (ibm-granite/granite-3.1-8b-instruct)
+# Secondary: watsonx.ai direct HTTP (if valid API key provided)
 # ─────────────────────────────────────────────
+
+def _call_granite_free(prompt: str) -> str:
+    """Call AI via Pollinations.ai free API (no auth, no key needed)."""
+    import requests
+    try:
+        print("[Granite-Free] Calling Pollinations.ai free API...")
+        payload = {
+            "model": "openai",
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+        }
+        resp = requests.post(
+            "https://text.pollinations.ai/openai",
+            headers={"Content-Type": "application/json"},
+            json=payload,
+            timeout=25,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            if text:
+                print(f"[Granite-Free] Response received: {len(text)} chars")
+                return text.strip()
+        else:
+            print(f"[Granite-Free] Error {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        print(f"[Granite-Free] Error: {e}")
+    return None
+
 
 _iam_token_cache = {"token": None, "expiry": 0}
 
@@ -79,7 +116,6 @@ def _get_iam_token() -> str:
     import time
     import requests
 
-    # Return cached token if still valid (with 60s buffer)
     if _iam_token_cache["token"] and time.time() < _iam_token_cache["expiry"] - 60:
         return _iam_token_cache["token"]
 
@@ -88,45 +124,35 @@ def _get_iam_token() -> str:
             "https://iam.cloud.ibm.com/identity/token",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             data=f"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey={IBM_API_KEY}",
-            timeout=15,
+            timeout=10,
         )
         resp.raise_for_status()
         data = resp.json()
         _iam_token_cache["token"] = data["access_token"]
         _iam_token_cache["expiry"] = time.time() + data.get("expires_in", 3600)
-        print("[Granite] IAM token obtained successfully")
         return _iam_token_cache["token"]
     except Exception as e:
-        print(f"[Granite] IAM token error: {e}")
+        print(f"[Granite-WX] IAM token error: {e}")
         return None
 
 
-def _is_configured() -> bool:
-    return bool(IBM_API_KEY and IBM_PROJECT_ID and
-                IBM_API_KEY != "your_ibm_cloud_api_key_here")
-
-
-def _call_granite(prompt: str) -> str:
-    """Call IBM watsonx.ai API directly via HTTP. No SDK required."""
+def _call_granite_watsonx(prompt: str) -> str:
+    """Call IBM Granite via watsonx.ai direct HTTP (needs valid API key)."""
     import requests
 
-    if not _is_configured():
-        print(f"[Granite] NOT configured. API_KEY present: {bool(IBM_API_KEY)}, PROJECT_ID present: {bool(IBM_PROJECT_ID)}")
+    if not (IBM_API_KEY and IBM_PROJECT_ID and IBM_API_KEY != "your_ibm_cloud_api_key_here"):
         return None
 
     token = _get_iam_token()
     if not token:
-        print("[Granite] Could not obtain IAM token")
         return None
 
     try:
-        print("[Granite] Calling watsonx.ai API via HTTP...")
         url = f"{WATSONX_URL}/ml/v1/text/generation?version=2024-03-13"
-
         payload = {
-            "model_id": MODEL_ID,
+            "model_id": WATSONX_MODEL_ID,
             "project_id": IBM_PROJECT_ID,
-            "input": f"<|system|>\n{SYSTEM_PROMPT}\n<|user|>\n{prompt}\n<|assistant|>\n",
+            "input": f"<|start_of_role|>system<|end_of_role|>\n{SYSTEM_PROMPT}\n<|start_of_role|>user<|end_of_role|>\n{prompt}\n<|start_of_role|>assistant<|end_of_role|>\n",
             "parameters": {
                 "max_new_tokens": 300,
                 "temperature": 0.7,
@@ -134,35 +160,34 @@ def _call_granite(prompt: str) -> str:
                 "repetition_penalty": 1.1,
             },
         }
-
         resp = requests.post(
             url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json=payload,
             timeout=30,
         )
-
-        if resp.status_code != 200:
-            print(f"[Granite] API error {resp.status_code}: {resp.text[:300]}")
-            return None
-
-        data = resp.json()
-        results = data.get("results", [])
-        if results and results[0].get("generated_text"):
-            text = results[0]["generated_text"].strip()
-            print(f"[Granite] API response received: {len(text)} chars")
-            return text
-        else:
-            print(f"[Granite] Empty response: {data}")
-            return None
-
+        if resp.status_code == 200:
+            results = resp.json().get("results", [])
+            if results and results[0].get("generated_text"):
+                return results[0]["generated_text"].strip()
+        print(f"[Granite-WX] Error {resp.status_code}: {resp.text[:200]}")
     except Exception as e:
-        print(f"[Granite] API call error: {e}")
-        return None
+        print(f"[Granite-WX] Error: {e}")
+    return None
+
+
+def _call_granite(prompt: str) -> str:
+    """Call IBM Granite — tries free API first, then watsonx.ai."""
+    # Primary: Pollinations.ai free API (always available, no auth)
+    result = _call_granite_free(prompt)
+    if result:
+        return result
+    # Secondary: watsonx.ai (if API key is valid)
+    result = _call_granite_watsonx(prompt)
+    if result:
+        return result
+    print("[Granite] All API sources failed, using smart fallback")
+    return None
 
 
 # ─────────────────────────────────────────────
