@@ -194,10 +194,10 @@ VEGAIQ/
 
 ## Team
 
-| Member | Role | Institution |
-|--------|------|------------|
-| [Vivek Kumar](https://github.com/ehvivek) | Full Stack Developer & AI Engineer | RGIPT Jais |
-| [Camila Paraguacuto](https://github.com/cparaguacuto02) | | |
+| Member |
+|--------|
+| [Vivek Kumar](https://github.com/ehvivek) |
+| [Camila Paraguacuto](https://github.com/cparaguacuto02) |
 
 ---
 
