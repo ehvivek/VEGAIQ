@@ -69,31 +69,35 @@ CACHED_CHAT = {
 
 
 # ─────────────────────────────────────────────
-# IBM Granite API client
+# IBM Granite API client (direct HTTP — no SDK needed)
 # ─────────────────────────────────────────────
 
-def _get_model():
-    """Initialize IBM Granite model via watsonx.ai SDK."""
-    try:
-        from ibm_watsonx_ai import Credentials
-        from ibm_watsonx_ai.foundation_models import ModelInference
-        from ibm_watsonx_ai.metanames import GenTextParamsMetaNames as Params
+_iam_token_cache = {"token": None, "expiry": 0}
 
-        creds = Credentials(url=WATSONX_URL, api_key=IBM_API_KEY)
-        model = ModelInference(
-            model_id=MODEL_ID,
-            credentials=creds,
-            project_id=IBM_PROJECT_ID,
-            params={
-                Params.MAX_NEW_TOKENS: 300,
-                Params.TEMPERATURE: 0.7,
-                Params.TOP_P: 0.9,
-                Params.REPETITION_PENALTY: 1.1,
-            },
+def _get_iam_token() -> str:
+    """Get an IAM bearer token from IBM Cloud using the API key."""
+    import time
+    import requests
+
+    # Return cached token if still valid (with 60s buffer)
+    if _iam_token_cache["token"] and time.time() < _iam_token_cache["expiry"] - 60:
+        return _iam_token_cache["token"]
+
+    try:
+        resp = requests.post(
+            "https://iam.cloud.ibm.com/identity/token",
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            data=f"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey={IBM_API_KEY}",
+            timeout=15,
         )
-        return model
+        resp.raise_for_status()
+        data = resp.json()
+        _iam_token_cache["token"] = data["access_token"]
+        _iam_token_cache["expiry"] = time.time() + data.get("expires_in", 3600)
+        print("[Granite] IAM token obtained successfully")
+        return _iam_token_cache["token"]
     except Exception as e:
-        print(f"[Granite] SDK init error: {e}")
+        print(f"[Granite] IAM token error: {e}")
         return None
 
 
@@ -103,20 +107,59 @@ def _is_configured() -> bool:
 
 
 def _call_granite(prompt: str) -> str:
-    """Call IBM Granite API with a prompt. Returns text response."""
+    """Call IBM watsonx.ai API directly via HTTP. No SDK required."""
+    import requests
+
     if not _is_configured():
         print(f"[Granite] NOT configured. API_KEY present: {bool(IBM_API_KEY)}, PROJECT_ID present: {bool(IBM_PROJECT_ID)}")
         return None
+
+    token = _get_iam_token()
+    if not token:
+        print("[Granite] Could not obtain IAM token")
+        return None
+
     try:
-        print("[Granite] Calling IBM Granite API...")
-        model = _get_model()
-        if model is None:
-            print("[Granite] Model initialization returned None")
+        print("[Granite] Calling watsonx.ai API via HTTP...")
+        url = f"{WATSONX_URL}/ml/v1/text/generation?version=2024-03-13"
+
+        payload = {
+            "model_id": MODEL_ID,
+            "project_id": IBM_PROJECT_ID,
+            "input": f"<|system|>\n{SYSTEM_PROMPT}\n<|user|>\n{prompt}\n<|assistant|>\n",
+            "parameters": {
+                "max_new_tokens": 300,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "repetition_penalty": 1.1,
+            },
+        }
+
+        resp = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=payload,
+            timeout=30,
+        )
+
+        if resp.status_code != 200:
+            print(f"[Granite] API error {resp.status_code}: {resp.text[:300]}")
             return None
-        full_prompt = f"<|system|>\n{SYSTEM_PROMPT}\n<|user|>\n{prompt}\n<|assistant|>\n"
-        response = model.generate_text(prompt=full_prompt)
-        print(f"[Granite] API response received: {len(response) if response else 0} chars")
-        return response.strip() if response else None
+
+        data = resp.json()
+        results = data.get("results", [])
+        if results and results[0].get("generated_text"):
+            text = results[0]["generated_text"].strip()
+            print(f"[Granite] API response received: {len(text)} chars")
+            return text
+        else:
+            print(f"[Granite] Empty response: {data}")
+            return None
+
     except Exception as e:
         print(f"[Granite] API call error: {e}")
         return None
