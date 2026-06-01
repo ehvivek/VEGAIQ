@@ -12,6 +12,7 @@
   <img src="https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/Streamlit-1.35+-FF4B4B?logo=streamlit&logoColor=white" alt="Streamlit">
   <img src="https://img.shields.io/badge/IBM_Granite-3.1-052FAD?logo=ibm&logoColor=white" alt="IBM Granite">
+  <img src="https://img.shields.io/badge/IBM_Docling-Parser-052FAD?logo=ibm&logoColor=white" alt="IBM Docling">
   <img src="https://img.shields.io/badge/scikit_learn-F7931E?logo=scikit-learn&logoColor=white" alt="scikit-learn">
   <img src="https://img.shields.io/badge/Plotly-3F4F75?logo=plotly&logoColor=white" alt="Plotly">
   <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
@@ -47,15 +48,24 @@ VEGAIQ analyzes **Max Verstappen's complete Abu Dhabi GP 2024**, uncovering the 
 
 | IBM Tool | Role in VEGAIQ | Integration |
 |----------|----------------|-------------|
-| **IBM Granite 3.1** | Primary AI brain — psychological analysis, conversational chat, sentiment analysis, report generation | `ibm-watsonx-ai` SDK via watsonx.ai API |
+| **IBM Granite 3.1** | Primary AI brain — psychological analysis, conversational chat, sentiment analysis, report generation, grounded document QA | `ibm-watsonx-ai` SDK via watsonx.ai API |
 | **IBM Bob** | AI development assistant — used to scaffold, review, and debug code throughout development | IDE integration |
 | **Langflow** | Visual AI pipeline orchestrator — connects all data sources, ML models, and AI components | Python SDK + exported workflow JSON |
+| **IBM Docling** | Document parsing and layout analysis engine — extracts structured Markdown from PDFs/DOCX | Native `docling` library with high-fidelity custom pure-Python fallback |
+
+### IBM Docling & Granite RAG Pipeline
+VEGAIQ incorporates a state-of-the-art document processing pipeline built on **IBM Docling**:
+- **Structured Extraction**: Converts complex PDF technical layouts, tables, and racing sheets into clean, layout-aware Markdown format.
+- **Granite Grounded QA**: Integrates directly with **IBM Granite 3.1** via a custom-designed F1 document intelligence agent, generating precise context-grounded responses.
+- **Fail-safe Engine**: Features a pure-Python fallback system utilizing `pypdf` to ensure 100% environment compatibility and robust execution on memory-constrained deployments.
 
 ### IBM Granite 3.1 Capabilities
 1. **`analyze_lap()`** — Generates a multi-sentence psychological profile per lap using stress scores, radio, and race events.
 2. **`chat_response()`** — Conversational answers about race psychology with multi-turn memory.
-3. **`analyze_sentiment()`** — Radio transcript sentiment scoring (-1.0 to +1.0).
-4. **`generate_report()`** — Comprehensive race psychological report generation.
+3. **`docling_chat_response()`** — Answers document-specific questions grounded strictly on Docling-extracted Markdown text.
+4. **`analyze_sentiment()`** — Radio transcript sentiment scoring (-1.0 to +1.0).
+5. **`generate_report()`** — Comprehensive race psychological report generation.
+
 
 ---
 
@@ -105,8 +115,11 @@ Race overview with 4 metric cards, race timeline table with color-coded stress l
 ### Lap Dive
 The most detailed page — lap-by-lap navigation with cognitive load bars, biometric sparklines, key events timeline, radio transcript terminal, zoomed chart, and sector breakdown.
 
-### AI Chat
-IBM Granite Intelligence conversational interface with Whisper voice input, pre-loaded conversation, suggested questions, and race context panel.
+### AI Chat & F1 Document Intelligence
+Dual-mode conversational console featuring:
+- **Telemetry Chat**: Interactive F1 driver psychology chatbot built with IBM Granite 3.1, featuring Whisper voice recognition, dynamic context injection, and structured suggested questions.
+- **F1 Document Intelligence**: F1 document RAG panel powered by **IBM Docling** extraction and **IBM Granite 3.1**, supporting PDF, DOCX, and HTML uploads, real-time layout-aware parsing, document preview, and grounded document chat.
+
 
 ### Reports
 Comprehensive psychological report with gauge chart, executive summary, key insight quote, events donut chart, P1 outcome display, and PDF export.

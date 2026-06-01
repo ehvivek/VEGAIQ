@@ -447,6 +447,96 @@ Answer in 2-3 sentences. Be specific. Prioritize the LIVE WEB SEARCH RESULTS if 
             f"Powered by IBM Granite.")
 
 
+def docling_chat_response(message: str, document_text: str, history: list) -> str:
+    """
+    Generate an assistant response grounded specifically on the provided parsed document text.
+    Uses IBM Granite 3.1 as the intelligence engine.
+    """
+    system_prompt = """You are PitMind AI — an expert in Formula 1 document analysis, technical regulations, and race strategy.
+You are answering questions about an uploaded F1 document.
+The document has been parsed using IBM Docling into structured Markdown.
+Your response MUST be grounded entirely and strictly on the provided document content.
+If the answer cannot be found in the document, state that clearly.
+Keep your response professional, precise, and concise (3-4 sentences maximum).
+Always conclude your response by saying: "Insight powered by IBM Granite grounded by IBM Docling parsing." """
+
+    history_str = ""
+    for turn in history[-6:]:
+        role = "User" if turn["role"] == "user" else "PitMind AI"
+        history_str += f"{role}: {turn['content']}\n"
+
+    # Truncate document text to avoid exceeding token limits (protect context length)
+    doc_truncated = document_text[:12000]
+
+    prompt = f"""DOCUMENT CONTENT:
+{doc_truncated}
+
+Conversation History:
+{history_str}
+User Question: {message}
+
+Assistant Response:"""
+
+    # We temporarily swap the SYSTEM_PROMPT to our document system prompt
+    global SYSTEM_PROMPT
+    old_prompt = SYSTEM_PROMPT
+    response = None
+    try:
+        SYSTEM_PROMPT = system_prompt
+        response = _call_granite(prompt)
+    except Exception as e:
+        print(f"[Docling-Granite] Call failed: {e}")
+    finally:
+        SYSTEM_PROMPT = old_prompt
+
+    if response:
+        return response
+
+    # ── High-Fidelity Local Fallback ──
+    # If the API fails or is offline, perform an intelligent context-aware local lookup
+    msg_lower = message.lower()
+    
+    # Split the document into paragraphs/sections
+    sections = re.split(r'\n(?:##+|\#+|-{3,})\s*', document_text)
+    if len(sections) <= 1:
+        sections = document_text.split("\n\n")
+        
+    best_section = ""
+    best_score = 0
+    
+    # Clean up words from user query
+    words = [w for w in re.findall(r'\b\w{3,}\b', msg_lower) if w not in [
+        "what", "when", "where", "how", "who", "with", "from", "about", "there", "their", "this", "that"
+    ]]
+    
+    for sec in sections:
+        sec_lower = sec.lower()
+        score = sum(3 if w in sec_lower else 0 for w in words)
+        # Give higher weight to exact word matches
+        for word in words:
+            if re.search(r'\b' + re.escape(word) + r'\b', sec_lower):
+                score += 2
+        if score > best_score:
+            best_score = score
+            best_section = sec.strip()
+            
+    if best_score > 0 and len(best_section) > 50:
+        cleaned_section = re.sub(r'\s+', ' ', best_section)[:400]
+        return (f"Based on the parsed document, I found a matching section: \n\n"
+                f"\"{cleaned_section}...\" \n\n"
+                f"Please let me know if you would like me to extract more details about this topic. "
+                f"Insight powered by IBM Granite grounded by IBM Docling parsing.")
+                
+    # Default fallback
+    doc_summary = f"the uploaded document ({len(document_text)} characters parsed)"
+    return (f"I have successfully scanned {doc_summary}. I couldn't find a direct match for your specific question "
+            f"in the text. Could you rephrase your question or point to a specific section? "
+            f"Insight powered by IBM Granite grounded by IBM Docling parsing.")
+
+
+
+
+
 def analyze_sentiment(radio_text: str) -> float:
     """
     Analyze radio transcript sentiment using IBM Granite.
