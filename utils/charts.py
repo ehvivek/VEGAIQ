@@ -23,19 +23,6 @@ WHITE = "#FFFFFF"
 DARK_GRID = "#2A2A2A"
 FONT_FAMILY = "Rajdhani, Share Tech Mono, sans-serif"
 
-def hex_to_rgba_safe(color: str, alpha: float) -> str:
-    """Safely convert hex or rgb string to rgba string for Plotly."""
-    if "rgb" in color:
-        return color.replace(")", f",{alpha})").replace("rgb", "rgba")
-    elif color.startswith("#"):
-        hex_c = color.lstrip('#')
-        if len(hex_c) == 6:
-            return f"rgba({int(hex_c[:2], 16)},{int(hex_c[2:4], 16)},{int(hex_c[4:6], 16)},{alpha})"
-        elif len(hex_c) == 3:
-            return f"rgba({int(hex_c[0]*2, 16)},{int(hex_c[1]*2, 16)},{int(hex_c[2]*2, 16)},{alpha})"
-    return color
-
-
 
 def is_dark() -> bool:
     """Read theme state from Streamlit session state."""
@@ -81,8 +68,8 @@ def _base_layout(**kwargs) -> dict:
 # 1. Psychological Trace Chart (full race)
 # ─────────────────────────────────────────────
 
-def psychological_trace_chart(df: pd.DataFrame, selected_lap: int = 47, color: str = RED) -> go.Figure:
-    """Dual-axis: Stress Index (color) + Lap Time (grey dashed) across all laps."""
+def psychological_trace_chart(df: pd.DataFrame, selected_lap: int = 47) -> go.Figure:
+    """Dual-axis: Stress Index (red) + Lap Time (grey dashed) across all laps."""
     laps = df["lap"].tolist()
     stress = df["stress_index"].tolist()
     lap_times = df["lap_time_seconds"].tolist()
@@ -94,9 +81,9 @@ def psychological_trace_chart(df: pd.DataFrame, selected_lap: int = 47, color: s
         go.Scatter(
             x=laps, y=stress,
             name="Stress Index",
-            line=dict(color=color, width=2.5),
+            line=dict(color=RED, width=2.5),
             fill="tozeroy",
-            fillcolor=hex_to_rgba_safe(color, 0.08),
+            fillcolor="rgba(232,0,45,0.08)",
             hovertemplate="Lap %{x}<br>Stress: %{y:.1f}/10<extra></extra>",
         ),
         secondary_y=False,
@@ -116,7 +103,7 @@ def psychological_trace_chart(df: pd.DataFrame, selected_lap: int = 47, color: s
     # Selected lap vertical line
     fig.add_vline(
         x=selected_lap, line_dash="dot",
-        line_color=color, line_width=1.5, opacity=0.7,
+        line_color=RED, line_width=1.5, opacity=0.7,
     )
 
     # Critical lap annotation
@@ -127,10 +114,10 @@ def psychological_trace_chart(df: pd.DataFrame, selected_lap: int = 47, color: s
             x=selected_lap, y=peak_stress,
             text=f"◆ CRITICAL — LAP {selected_lap}",
             showarrow=True, arrowhead=2,
-            arrowcolor=color, arrowwidth=1.5,
-            font=dict(color=color, size=11, family=FONT_FAMILY),
-            bgcolor=hex_to_rgba_safe(color, 0.15),
-            bordercolor=color, borderwidth=1,
+            arrowcolor=RED, arrowwidth=1.5,
+            font=dict(color=RED, size=11, family=FONT_FAMILY),
+            bgcolor="rgba(232,0,45,0.15)",
+            bordercolor=RED, borderwidth=1,
             ax=40, ay=-35,
         )
 
@@ -277,7 +264,7 @@ def gauge_chart(score: float, title: str = "OVERALL PSYCH SCORE") -> go.Figure:
         title=dict(text=title, font=dict(size=12, color=muted_color), x=0.5),
         annotations=[dict(
             text="High Performance",
-            x=0.5, y=0.08, xref="paper", yref="paper",
+            x=0.5, y=0.22, xref="paper", yref="paper",
             font=dict(size=12, color=muted_color, family=FONT_FAMILY),
             showarrow=False,
         )],
@@ -289,7 +276,7 @@ def gauge_chart(score: float, title: str = "OVERALL PSYCH SCORE") -> go.Figure:
 # 4. Events Donut Chart
 # ─────────────────────────────────────────────
 
-def events_donut_chart(df: pd.DataFrame, color: str = BLUE) -> go.Figure:
+def events_donut_chart(df: pd.DataFrame) -> go.Figure:
     """Donut chart showing race event breakdown."""
     sc_count = 0
     yf_count = 0
@@ -327,7 +314,7 @@ def events_donut_chart(df: pd.DataFrame, color: str = BLUE) -> go.Figure:
 
     labels = ["Safety Car", "Yellow Flag", "Radio Events", "Other"]
     values = [max(sc_count, 3), max(yf_count, 5), max(radio_count, 14), max(other_count, 2)]
-    colors = [RED, "#FFD700", color, GREY]
+    colors = [RED, "#FFD700", BLUE, GREY]
     total = sum(values)
 
     fig = go.Figure(go.Pie(
@@ -359,7 +346,7 @@ def events_donut_chart(df: pd.DataFrame, color: str = BLUE) -> go.Figure:
 # 5. Multi-line Report Trace (Stress + Quality + Fatigue)
 # ─────────────────────────────────────────────
 
-def report_trace_chart(df: pd.DataFrame, color: str = RED) -> go.Figure:
+def report_trace_chart(df: pd.DataFrame) -> go.Figure:
     """3-line Plotly chart for Reports page: Stress + Quality + Fatigue."""
     laps = df["lap"].tolist()
     stress = df["stress_index"].tolist()
@@ -369,7 +356,7 @@ def report_trace_chart(df: pd.DataFrame, color: str = RED) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(go.Scatter(
         x=laps, y=stress, name="Stress Index",
-        line=dict(color=color, width=2.5),
+        line=dict(color=RED, width=2.5),
         hovertemplate="Lap %{x} — Stress: %{y:.1f}<extra></extra>",
     ))
     fig.add_trace(go.Scatter(
@@ -386,13 +373,13 @@ def report_trace_chart(df: pd.DataFrame, color: str = RED) -> go.Figure:
     # Critical lap 47 annotation
     if 47 in laps:
         idx = laps.index(47)
-        fig.add_vline(x=47, line_dash="dot", line_color=color, line_width=1.5, opacity=0.7)
+        fig.add_vline(x=47, line_dash="dot", line_color=RED, line_width=1.5, opacity=0.7)
         fig.add_annotation(
             x=47, y=stress[idx],
             text="CRITICAL LAP 47",
-            showarrow=True, arrowhead=2, arrowcolor=color,
-            font=dict(color=color, size=10), ax=35, ay=-30,
-            bgcolor=hex_to_rgba_safe(color, 0.15), bordercolor=color, borderwidth=1,
+            showarrow=True, arrowhead=2, arrowcolor=RED,
+            font=dict(color=RED, size=10), ax=35, ay=-30,
+            bgcolor="rgba(232,0,45,0.15)", bordercolor=RED, borderwidth=1,
         )
 
     dark = is_dark()

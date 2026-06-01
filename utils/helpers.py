@@ -11,20 +11,6 @@ from pathlib import Path
 
 DATA_DIR = Path(__file__).parent.parent / "data"
 
-DRIVERS = {
-    'Max Verstappen':    {'number': 1,  'code': 'VER', 'team': 'Red Bull Racing',    'color': '#3671C6'},
-    'Sergio Perez':      {'number': 11, 'code': 'PER', 'team': 'Red Bull Racing',    'color': '#3671C6'},
-    'Lando Norris':      {'number': 4,  'code': 'NOR', 'team': 'McLaren',            'color': '#FF8000'},
-    'Oscar Piastri':     {'number': 81, 'code': 'PIA', 'team': 'McLaren',            'color': '#FF8000'},
-    'Charles Leclerc':   {'number': 16, 'code': 'LEC', 'team': 'Ferrari',            'color': '#E8002D'},
-    'Carlos Sainz':      {'number': 55, 'code': 'SAI', 'team': 'Ferrari',            'color': '#E8002D'},
-    'Lewis Hamilton':    {'number': 44, 'code': 'HAM', 'team': 'Mercedes',           'color': '#27F4D2'},
-    'George Russell':    {'number': 63, 'code': 'RUS', 'team': 'Mercedes',           'color': '#27F4D2'},
-}
-
-# Alias for backwards compatibility where needed
-DRIVER_INFO = DRIVERS
-
 
 # ─────────────────────────────────────────────
 # Formatting helpers
@@ -211,18 +197,10 @@ def get_race_summary(df: pd.DataFrame) -> dict:
 
 def init_session_state():
     """Initialize all Streamlit session state variables."""
-    if 'selected_driver' not in st.session_state:
-        st.session_state.selected_driver = 'Max Verstappen'
-    if 'selected_race' not in st.session_state:
-        st.session_state.selected_race = 'Abu Dhabi GP 2024'
-    if 'driver_data_cache' not in st.session_state:
-        st.session_state.driver_data_cache = {}
-    if 'selected_lap' not in st.session_state:
-        st.session_state.selected_lap = 47
-
-    # Keep older variables for compatibility where not rewritten
     defaults = {
         "dark_mode": True,
+        "selected_lap": 47,
+        "selected_race": "Abu Dhabi GP 2024",
         "selected_session": "Race",
         "race_df": None,
         "pipeline_run": False,
@@ -235,24 +213,25 @@ def init_session_state():
             st.session_state[key] = value
 
 
+
 # ─────────────────────────────────────────────
 # Data loading with caching
 # ─────────────────────────────────────────────
 
 @st.cache_data(show_spinner=False, ttl=3600)
-def get_race_data(race_name: str = "Abu Dhabi GP 2024", session_type: str = "Race", driver_name: str = "Max Verstappen") -> pd.DataFrame:
+def get_race_data(race_name: str = "Abu Dhabi GP 2024") -> pd.DataFrame:
     """Load and fully process race data (cached for 1 hour)."""
     from core.data_pipeline import load_race_data, _generate_fallback_data
     from core.models import predict_all_laps, train_models
     from core.synthetic import enrich_dataframe
 
     try:
-        df = load_race_data(race_name, session_type, driver_name)
+        df = load_race_data(race_name)
     except Exception:
-        df = _generate_fallback_data(race_name, session_type, driver_name)
+        df = _generate_fallback_data(race_name)
 
     if df.empty:
-        df = _generate_fallback_data(race_name, session_type, driver_name)
+        df = _generate_fallback_data(race_name)
 
     # Train models if not done yet
     try:
@@ -304,38 +283,3 @@ KEY_EVENTS_BY_LAP = {
 def get_key_events(lap_number: int) -> list:
     """Get key events for a given lap."""
     return KEY_EVENTS_BY_LAP.get(lap_number, [])
-
-
-# ─────────────────────────────────────────────
-# Chat Persistence
-# ─────────────────────────────────────────────
-
-CHAT_HISTORY_FILE = DATA_DIR / "chat_history.json"
-
-def load_chat_history(race_key: str):
-    """Load chat history from local JSON file."""
-    if CHAT_HISTORY_FILE.exists():
-        try:
-            with open(CHAT_HISTORY_FILE, "r") as f:
-                data = json.load(f)
-                return data.get(race_key, None)
-        except Exception as e:
-            print(f"Error loading chat history: {e}")
-    return None
-
-def save_chat_history(race_key: str, messages: list):
-    """Save chat history to local JSON file."""
-    data = {}
-    if CHAT_HISTORY_FILE.exists():
-        try:
-            with open(CHAT_HISTORY_FILE, "r") as f:
-                data = json.load(f)
-        except Exception:
-            pass
-            
-    data[race_key] = messages
-    try:
-        with open(CHAT_HISTORY_FILE, "w") as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print(f"Error saving chat history: {e}")

@@ -10,21 +10,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 st.set_page_config(
-    page_title="VEGAIQ | Lap Dive",
+    page_title="PitMind | Lap Dive",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 from utils.styling import inject_css, setup_sidebar, get_svg_icon, render_ibm_label, get_race_metadata
 from utils.helpers import (
-    init_session_state, get_race_summary, load_lap_data,
+    init_session_state, get_race_data, get_race_summary, load_lap_data,
     get_best_lap_data, format_lap_time, format_delta, stress_color,
     get_event_badges, get_key_events, get_tyre_badge,
-    DRIVERS
 )
 from utils.charts import zoomed_lap_chart, hr_sparkline, eeg_sparkline, reaction_bar_chart
-from core.data_pipeline import get_complete_driver_data
-from core.synthetic import generate_driver_biometrics
 
 init_session_state()
 inject_css()
@@ -33,18 +30,9 @@ inject_css()
 with st.sidebar:
     setup_sidebar()
 
-driver_name = st.session_state.get("selected_driver", "Max Verstappen")
-driver = DRIVERS.get(driver_name, DRIVERS["Max Verstappen"])
-d_color = driver["color"]
-
 # -- Load Data --
-with st.spinner(f"Loading {driver_name} lap data..."):
-    df = get_complete_driver_data(driver_name)
-
-from core.models import get_peak_stress_lap
-if "selected_lap" not in st.session_state or st.session_state.selected_lap not in df['lap'].values:
-    st.session_state.selected_lap = get_peak_stress_lap(driver_name)
-
+with st.spinner("Loading race data..."):
+    df = get_race_data(st.session_state.selected_race)
 summary = get_race_summary(df)
 best_lap_data = get_best_lap_data(df)
 total_laps = len(df)
@@ -70,19 +58,19 @@ with top_l:
     st.markdown(f"""
 <div style="padding-top:2.5rem;">
   <span style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;
-               letter-spacing:0.2em;color:#888;">LAP : {driver_name.upper()}</span>
+               letter-spacing:0.2em;color:#888;">LAP</span>
   <span style="font-family:'Rajdhani',sans-serif;font-size:3.5rem;font-weight:700;
-               color:{d_color};margin-left:8px;">{lap_num}</span>
+               color:#E8002D;margin-left:8px;">{lap_num}</span>
 </div>""", unsafe_allow_html=True)
 
 with top_m:
-    badge = f'<span class="pm-badge" style="background:{d_color};color:white;">CRITICAL PSYCHOLOGICAL EVENT</span>' if is_critical else ''
+    badge = '<span class="pm-badge pm-badge-red">CRITICAL PSYCHOLOGICAL EVENT</span>' if is_critical else ''
     st.markdown(f"""
 <div style="padding-top:3rem;">
   {badge}
   <span style="font-family:'Share Tech Mono',monospace;font-size:0.75rem;color:#888;margin-left:8px;">
     Lap Time: <b style="color:var(--text-primary);">{format_lap_time(float(lap_data.get("lap_time_seconds", 89.987)))}</b>
-    &nbsp; Delta: <b style="color:{d_color};">{format_delta(float(lap_data.get("delta_to_best", 0)))}</b>
+    &nbsp; Delta: <b style="color:#E8002D;">{format_delta(float(lap_data.get("delta_to_best", 0)))}</b>
   </span>
 </div>""", unsafe_allow_html=True)
 
@@ -103,7 +91,7 @@ with top_r:
             st.session_state.selected_lap = min(total_laps, lap_num + 1)
             st.rerun()
 
-st.markdown(f'<div style="height:2px;background:linear-gradient(90deg,{d_color},transparent);margin:0.3rem 0 1rem;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:2px;background:linear-gradient(90deg,#E8002D,transparent);margin:0.3rem 0 1rem;"></div>', unsafe_allow_html=True)
 
 # ====== ROW 1 - INFO / COGNITIVE / GRANITE ======
 col_info, col_cog, col_granite = st.columns([1.2, 1.5, 1.5], gap="medium")
@@ -137,7 +125,7 @@ with col_cog:
     sa = round(float(lap_data.get("situational_awareness", 7.0)), 1)
 
     for label, value, color in [
-        ("STRESS LEVEL", stress, d_color),
+        ("STRESS LEVEL", stress, "#E8002D"),
         ("DECISION QUALITY", quality, "#4A9EFF"),
         ("MENTAL FATIGUE", fatigue, "#FF7B00"),
         ("SITUATIONAL AWARENESS", sa, "#00C853"),
@@ -158,20 +146,20 @@ with col_granite:
     st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.65rem;'
                 'letter-spacing:0.15em;color:#888;margin-bottom:0.5rem;">IBM GRANITE ANALYSIS</div>',
                 unsafe_allow_html=True)
-    cache_key = f"granite_lap_{st.session_state.selected_race}_{driver_name}_{lap_num}"
+    cache_key = f"granite_lap_{st.session_state.selected_race}_{lap_num}"
     if cache_key not in st.session_state:
         try:
-            from core.granite import analyze_lap_for_driver
-            st.session_state[cache_key] = analyze_lap_for_driver(driver_name, lap_num)
+            from core.granite import analyze_lap
+            st.session_state[cache_key] = analyze_lap(lap_data)
         except Exception:
             st.session_state[cache_key] = (
-                f"IBM Granite Analysis — Lap {lap_num}: {driver_name} maintained psychological composure. "
-                f"Stress metrics were within range for this phase of the session. Decision quality reflects "
+                f"IBM Granite Analysis — Lap {lap_num}: Max Verstappen maintained psychological composure. "
+                f"Stress metrics were within range for this phase of the race. Decision quality reflects "
                 f"his experience and situational awareness."
             )
 
     st.markdown(f"""
-<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid {d_color};
+<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid #E8002D;
             border-radius:8px;padding:1rem 1.2rem;">
   <div style="display:flex;align-items:center;gap:6px;margin-bottom:0.5rem;">
     <span style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;
@@ -190,28 +178,27 @@ st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.6
             'letter-spacing:0.15em;color:#888;margin-bottom:0.5rem;">BIOMETRIC ESTIMATES</div>',
             unsafe_allow_html=True)
 
-biometrics = generate_driver_biometrics(lap_data, driver['code'])
-hr = biometrics["heart_rate"]
-mental_state = biometrics["mental_state"]
-eye = biometrics["eye_tracking"]
-rt_delta = biometrics["reaction_delta"]
+hr = int(lap_data.get("heart_rate_est", 155))
+mental_state = str(lap_data.get("mental_state", "FOCUSED"))
+eye = str(lap_data.get("eye_tracking", "FOCUSED"))
+rt_delta = int(lap_data.get("reaction_time_delta", 0))
 
 bio1, bio2, bio3, bio4 = st.columns(4, gap="medium")
 
 with bio1:
-    pk = f'<span class="pm-badge" style="background:{d_color};color:white;">PEAK</span>' if hr >= driver.get('base_hr', 145)+20 else ""
+    pk = '<span class="pm-badge pm-badge-red">PEAK</span>' if hr >= 165 else ""
     st.markdown(f"""
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center;">
   <div style="color:var(--text-primary);">{get_svg_icon("heart", size=24, margin="0")}</div>
   <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:var(--text-muted);margin:0.2rem 0;">HEART RATE</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:{d_color};">
+  <div style="font-family:'Rajdhani',sans-serif;font-size:2rem;font-weight:700;color:#E8002D;">
     {hr} <span style="font-size:0.9rem;color:var(--text-muted);">BPM</span></div>
   {pk}
 </div>""", unsafe_allow_html=True)
     st.plotly_chart(hr_sparkline(hr), key=f"hr_spark_{lap_num}", width="stretch", config={"displayModeBar": False})
 
 with bio2:
-    ms_color = d_color if "CRITICAL" in mental_state else "#FF7B00" if "ELEVATED" in mental_state else "#00C853"
+    ms_color = "#E8002D" if "CRITICAL" in mental_state else "#FF7B00" if "ELEVATED" in mental_state else "#00C853"
     st.markdown(f"""
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center;">
   <div style="color:var(--text-primary);">{get_svg_icon("brain", size=24, margin="0")}</div>
@@ -221,7 +208,7 @@ with bio2:
     st.plotly_chart(eeg_sparkline(stress, color=ms_color), key=f"eeg_spark_{lap_num}", width="stretch", config={"displayModeBar": False})
 
 with bio3:
-    eye_color = d_color if eye == "ERRATIC" else "#FF7B00" if eye == "MODERATE" else "#00C853"
+    eye_color = "#E8002D" if eye == "ERRATIC" else "#FF7B00" if eye == "MODERATE" else "#00C853"
     st.markdown(f"""
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center;">
   <div style="color:var(--text-primary);">{get_svg_icon("eye", size=24, margin="0")}</div>
@@ -231,7 +218,7 @@ with bio3:
     st.plotly_chart(eeg_sparkline(stress * 0.8, color=eye_color), key=f"eye_spark_{lap_num}", width="stretch", config={"displayModeBar": False})
 
 with bio4:
-    rt_color = d_color if rt_delta < -100 else "#FF7B00" if rt_delta < 0 else "#00C853"
+    rt_color = "#E8002D" if rt_delta < -100 else "#FF7B00" if rt_delta < 0 else "#00C853"
     st.markdown(f"""
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;text-align:center;">
   <div style="color:var(--text-primary);">{get_svg_icon("time", size=24, margin="0")}</div>
@@ -268,23 +255,18 @@ with col_ev:
                     'font-size:0.75rem;">No major events on this lap</div>', unsafe_allow_html=True)
 
     # Radio transcript
-    radio_text = str(lap_data.get("radio_text", "")).strip('"\'')
+    radio_text = str(lap_data.get("radio_text", ""))
     if radio_text and radio_text not in ["No transmission.", ""]:
-        
-        if radio_text.startswith("http") and radio_text.endswith(".mp3"):
-            msg_html = f'<div style="color:{d_color};">{driver["code"]}: [AUDIO LOGGED]</div><audio controls src="{radio_text}" style="height:30px; margin-top:10px; width:100%;"></audio>'
-        else:
-            msg_html = f'<div style="color:{d_color};">{driver["code"]}: "{radio_text}"</div>'
-
         st.markdown(f"""
-        <div style="background:#0A0A0A;border:1px solid #333;border-radius:6px;padding:1rem;font-family:'Share Tech Mono',monospace;">
-            <div style="color:#555;font-size:0.7rem;margin-bottom:0.5rem;display:flex;justify-content:space-between;">
-                <span>> RADIO_TRANSCRIPT</span>
-                <span>{driver['team']} PIT WALL</span>
-            </div>
-            {msg_html}
-        </div>
-        """, unsafe_allow_html=True)
+<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid #4ADE80;
+            border-radius:6px;padding:0.8rem 1rem;margin-top:0.8rem;">
+  <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;color:#4ADE80;margin-bottom:0.4rem;">
+    COMM TRANSCRIPT -- {timestamp}</div>
+  <div style="font-family:'Share Tech Mono',monospace;font-size:0.8rem;color:#4ADE80;line-height:1.8;">
+    <div>SP: "Max, we need to push now."</div>
+    <div style="color:#FFD700;">MAX: "{radio_text}"</div>
+  </div>
+</div>""", unsafe_allow_html=True)
 
 with col_zc:
     st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.65rem;'
@@ -310,7 +292,7 @@ btotal = round(bs1 + bs2 + bs3, 3)
 d1, d2, d3 = round(s1-bs1,3), round(s2-bs2,3), round(s3-bs3,3)
 dtotal = round(total-btotal, 3)
 
-def dc(d): return d_color if d > 0.1 else "#FF7B00" if d > 0 else "#00C853"
+def dc(d): return "#E8002D" if d > 0.1 else "#FF7B00" if d > 0 else "#00C853"
 
 st.markdown(f"""
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden;">
@@ -354,5 +336,5 @@ st.markdown(f"""
 </div>""", unsafe_allow_html=True)
 
 # ====== FOOTER ======
-st.markdown(f'<div style="height:2px;background:linear-gradient(90deg,{d_color},transparent);margin:1.5rem 0 0.5rem;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:2px;background:linear-gradient(90deg,#E8002D,transparent);margin:1.5rem 0 0.5rem;"></div>', unsafe_allow_html=True)
 render_ibm_label("IBM GRANITE 3.1 &middot; Data: OpenF1 + FastF1")

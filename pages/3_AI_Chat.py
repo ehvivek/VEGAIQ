@@ -9,33 +9,22 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 st.set_page_config(
-    page_title="VEGAIQ | AI Chat",
+    page_title="PitMind | AI Chat",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-from utils.styling import inject_css, setup_sidebar, render_ibm_label, get_svg_icon, get_race_metadata
-from utils.helpers import init_session_state, get_race_summary, load_chat_history, save_chat_history, DRIVERS
+from utils.styling import inject_css, setup_sidebar, render_ibm_label, get_svg_icon
+from utils.helpers import init_session_state, get_race_data, get_race_summary
+from utils.styling import get_race_metadata
 from core.ibm_bob import get_default_conversation
-from core.data_pipeline import get_complete_driver_data
 
 init_session_state()
 inject_css()
 
-driver_name = st.session_state.get("selected_driver", "Max Verstappen")
-driver = DRIVERS.get(driver_name, DRIVERS["Max Verstappen"])
-d_color = driver["color"]
-
-with st.spinner(f"Connecting to {driver_name} telemetry..."):
-    df = get_complete_driver_data(driver_name)
+with st.spinner("Loading race context..."):
+    df = get_race_data(st.session_state.selected_race)
 summary = get_race_summary(df)
-
-# Session memory is isolated to this driver
-if 'chat_driver' not in st.session_state or st.session_state.chat_driver != driver_name:
-    st.session_state.messages = []
-    st.session_state.chat_driver = driver_name
-
-msg_key = f"messages_{st.session_state.selected_race}_{driver_name}"
 
 # -- Sidebar --
 with st.sidebar:
@@ -57,12 +46,6 @@ with st.sidebar:
   </div>
 </div>""", unsafe_allow_html=True)
 
-    if st.button("Clear Chat History", use_container_width=True):
-        st.session_state[msg_key] = get_default_conversation(st.session_state.selected_race)
-        st.session_state.messages = st.session_state[msg_key]
-        save_chat_history(msg_key, st.session_state.messages)
-        st.rerun()
-
 # ====== CHAT HEADER ======
 st.markdown("""
 <div style="height:0;overflow:visible;pointer-events:none;user-select:none;">
@@ -72,48 +55,38 @@ st.markdown("""
               white-space:nowrap;pointer-events:none;line-height:1;">INTELLIGENCE</div>
 </div>""", unsafe_allow_html=True)
 
-sess_text = str(st.session_state.get("selected_session", "RACE")).upper()
 st.markdown(f"""
 <div style="padding-top:2.5rem;text-align:center;margin-bottom:0.5rem;">
   <div style="color:var(--text-primary);">{get_svg_icon("ibm", size=24, margin="0")}</div>
-  <div style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;">IBM Granite Intelligence : {driver_name}</div>
+  <div style="font-family:'Rajdhani',sans-serif;font-size:1.6rem;font-weight:700;">IBM Granite Intelligence</div>
   <div style="font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:#888;
               display:flex;align-items:center;justify-content:center;gap:6px;margin-top:0.3rem;">
-    <span style="width:6px;height:6px;background:{d_color};border-radius:50%;
+    <span style="width:6px;height:6px;background:#00C853;border-radius:50%;
                  display:inline-block;animation:pulse 2s infinite;"></span>
-    {sess_text} Connected &middot; Analysing Telemetry Stream
+    Session Connected &middot; Analysing Telemetry Stream
   </div>
 </div>""", unsafe_allow_html=True)
 
-st.markdown(f'<div style="height:2px;background:linear-gradient(90deg,transparent,{d_color},transparent);margin:0.5rem 0 1rem;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:2px;background:linear-gradient(90deg,transparent,#E8002D,transparent);margin:0.5rem 0 1rem;"></div>', unsafe_allow_html=True)
 
 # ====== CHAT AREA ======
 chat_col, info_col = st.columns([3, 1.2], gap="medium")
 
 with chat_col:
-    # Sync chat messages
+    # Sync chat messages with active selected race
+    msg_key = f"messages_{st.session_state.selected_race}"
     if msg_key not in st.session_state:
-        loaded = load_chat_history(msg_key)
-        if loaded:
-            st.session_state[msg_key] = loaded
-        else:
-            st.session_state[msg_key] = get_default_conversation(st.session_state.selected_race)
-    if not st.session_state.messages:
-        st.session_state.messages = st.session_state[msg_key]
+        st.session_state[msg_key] = get_default_conversation(st.session_state.selected_race)
+    st.session_state.messages = st.session_state[msg_key]
 
-    messages_container = st.container()
-    
-    with messages_container:
-        # Display existing messages
-        for msg in st.session_state.messages:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
+    # Display messages
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    # Render audio input below the messages container
+    # Inputs
+    text_prompt = st.chat_input("Ask about the race, driver psychology, or performance...")
     audio_val = st.audio_input("Voice Input (Powered by Whisper)", key="audio_in")
-    
-    # Render chat input
-    text_prompt = st.chat_input(f"Ask about {driver_name}'s psychology, stress, or performance...")
     
     prompt = None
     if text_prompt:
@@ -123,71 +96,78 @@ with chat_col:
         if st.session_state.get("last_audio_size") != audio_size:
             st.session_state["last_audio_size"] = audio_size
             from core.whisper_service import transcribe_streamlit_audio
-            with messages_container:
-                with st.chat_message("assistant"):
-                    with st.spinner("Whisper is transcribing..."):
-                        res = transcribe_streamlit_audio(audio_val)
-                        if res.get("text"):
-                            prompt = res["text"]
-                        elif res.get("error"):
-                            st.error(f"Whisper Error: {res['error']}")
+            with st.spinner("Whisper is transcribing..."):
+                res = transcribe_streamlit_audio(audio_val)
+                if res.get("text"):
+                    prompt = res["text"]
+                elif res.get("error"):
+                    st.error(f"Whisper Error: {res['error']}")
 
     if prompt:
-        # Append user message and show immediately in the container
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with messages_container:
-            with st.chat_message("user"):
-                st.markdown(prompt)
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-            # Build response
-            response = ""
-            with st.chat_message("assistant"):
-                with st.spinner("IBM Granite is analyzing..."):
-                    try:
-                        from core.granite import chat_with_driver_context
-                        response = chat_with_driver_context(prompt, st.session_state.messages, driver_name)
-                    except Exception as e:
-                        print(f"Error calling Granite: {e}")
+        # Build response — try IBM Granite API first, fall back to cached answers
+        response = ""
+        try:
+            from core.granite import chat_response
+            response = chat_response(prompt, st.session_state.messages, context=summary)
+        except Exception:
+            pass
 
-                    if not response:
-                        response = "I'm having trouble analyzing the telemetry right now. Please try again."
+        if not response:
+            from core.granite import CACHED_CHAT
+            msg_lower = prompt.lower()
+            response = CACHED_CHAT["default"]
+            for kw, cached in CACHED_CHAT.items():
+                if kw != "default" and kw in msg_lower:
+                    response = cached
+                    break
 
-                    st.markdown(response)
-                    
+        with st.chat_message("assistant"):
+            st.markdown(response)
+
         st.session_state.messages.append({"role": "assistant", "content": response})
-        st.session_state[msg_key] = st.session_state.messages
-        save_chat_history(msg_key, st.session_state.messages)
 
     st.markdown("""
 <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;
-            color:#555;text-align:center;margin-top:2rem;margin-bottom:1rem;">
+            color:#555;text-align:center;margin-top:0.5rem;">
   Powered by IBM Granite 3.1 &middot; Assisted by IBM Bob &middot; Whisper Voice Recognition
 </div>""", unsafe_allow_html=True)
 
 with info_col:
-    st.markdown(f'<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.65rem;'
-                f'letter-spacing:0.15em;color:#888;margin:1rem 0 0.5rem;">SUGGESTED PROMPTS</div>',
+    st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.6rem;'
+                'letter-spacing:0.15em;color:#888;margin-bottom:0.5rem;">SUGGESTED QUESTIONS</div>',
                 unsafe_allow_html=True)
 
     def handle_suggested_question(question):
         st.session_state.messages.append({"role": "user", "content": question})
         resp = ""
         try:
-            from core.granite import chat_with_driver_context
-            resp = chat_with_driver_context(question, st.session_state.messages, driver_name)
+            from core.granite import chat_response
+            resp = chat_response(question, st.session_state.messages, context=summary)
         except Exception:
-            resp = "Analysis unavailable."
+            pass
+        if not resp:
+            from core.granite import CACHED_CHAT
+            q_lower = question.lower()
+            resp = CACHED_CHAT["default"]
+            for kw, cached in CACHED_CHAT.items():
+                if kw != "default" and kw in q_lower:
+                    resp = cached
+                    break
         st.session_state.messages.append({"role": "assistant", "content": resp})
-        st.session_state[msg_key] = st.session_state.messages
-        save_chat_history(msg_key, st.session_state.messages)
 
-    suggested = [
-        f"When did {driver_name} experience peak stress?",
-        f"Did {driver_name}'s mental fatigue affect his lap times?",
-        f"When did {driver_name} make his best decisions?",
+    questions = [
+        "How did the Safety Car impact his mindset?",
+        "What was his confidence trend during the race?",
+        "Compare his stress levels across all laps",
+        "When did Verstappen make his best decisions?",
+        "How did tyre degradation affect his psychology?",
     ]
 
-    for i, q in enumerate(suggested):
+    for i, q in enumerate(questions):
         st.button(q, key=f"sq_{i}", use_container_width=True, on_click=handle_suggested_question, args=(q,))
 
     st.markdown('<div style="height:0.5rem"></div>', unsafe_allow_html=True)
@@ -195,15 +175,18 @@ with info_col:
     # Race context
     meta = get_race_metadata(st.session_state.selected_race)
     st.markdown(f"""
-<div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;color:{d_color};
-            margin-bottom:0.8rem;border-bottom:1px solid var(--border);padding-bottom:0.5rem;">
-    {driver_name.upper()} ({driver['team']})
-</div>
-<div style="font-family:'Rajdhani',sans-serif;font-size:0.9rem;color:var(--text-muted);line-height:2;">
-    <div>{get_svg_icon("timer")} Avg Quality &middot; {summary.get('avg_quality', 'N/A')}/10</div>
-    <div>{get_svg_icon("brain")} Peak Stress &middot; {summary.get('peak_stress', 'N/A')}/10 (Lap {summary.get('peak_lap', 'N/A')})</div>
+<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.8rem 1rem;">
+  <div style="font-family:'Share Tech Mono',monospace;font-size:0.6rem;
+              letter-spacing:0.12em;color:var(--text-muted);margin-bottom:0.4rem;">RACE CONTEXT</div>
+  <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;color:var(--text-muted);line-height:2;">
+    <div>{meta['flag_entity']} {st.session_state.selected_race}</div>
+    <div>{get_svg_icon("car")} Verstappen &middot; P1 &middot; {meta['margin']}</div>
+    <div>{get_svg_icon("trending")} Peak Stress: {summary['peak_stress']}/10 (L{summary['peak_lap']})</div>
+    <div>{get_svg_icon("brain")} Avg Quality: {summary['avg_quality']}/10</div>
+    <div>{get_svg_icon("headset")} Radio Events: {summary['total_radio']}</div>
+  </div>
 </div>""", unsafe_allow_html=True)
 
 # ====== FOOTER ======
-st.markdown(f'<div style="height:2px;background:linear-gradient(90deg,{d_color},transparent);margin:1.5rem 0 0.5rem;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:2px;background:linear-gradient(90deg,#E8002D,transparent);margin:1.5rem 0 0.5rem;"></div>', unsafe_allow_html=True)
 render_ibm_label("IBM GRANITE 3.1 &middot; IBM BOB &middot; WHISPER &middot; OpenF1 + FastF1")

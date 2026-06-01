@@ -9,24 +9,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 st.set_page_config(
-    page_title="VEGAIQ | Reports",
+    page_title="PitMind | Reports",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 from utils.styling import inject_css, setup_sidebar, render_ibm_label, get_race_metadata
 from utils.helpers import (
-    init_session_state, get_race_summary, fatigue_label, format_lap_time, DRIVERS
+    init_session_state, get_race_data, get_race_summary, fatigue_label, format_lap_time,
 )
-from utils.charts import gauge_chart, report_trace_chart, events_donut_chart, hex_to_rgba_safe
-from core.data_pipeline import get_complete_driver_data
+from utils.charts import gauge_chart, report_trace_chart, events_donut_chart
 
 init_session_state()
 inject_css()
-
-driver_name = st.session_state.get("selected_driver", "Max Verstappen")
-driver = DRIVERS.get(driver_name, DRIVERS["Max Verstappen"])
-d_color = driver["color"]
 
 # -- Sidebar --
 with st.sidebar:
@@ -52,8 +47,8 @@ with st.sidebar:
     ]
     for num, name, anchor in sections:
         is_active = "01" in num
-        c = d_color if is_active else "#888"
-        bg = f"{d_color}20" if is_active else "transparent"
+        c = "#E8002D" if is_active else "#888"
+        bg = "rgba(232,0,45,0.06)" if is_active else "transparent"
         content = f'<div class="report-nav-item" style="font-family:\'Share Tech Mono\',monospace;font-size:0.6rem;padding:4px 8px;color:{c};background:{bg};border-radius:3px;margin-bottom:2px;transition:all 0.2s;">{num} - {name}</div>'
         if anchor:
             st.markdown(f'<a href="#{anchor}" class="report-nav-link" target="_self" style="text-decoration:none;">{content}</a>', unsafe_allow_html=True)
@@ -61,47 +56,51 @@ with st.sidebar:
             st.markdown(f'<div style="opacity:0.4;cursor:not-allowed;">{content}</div>', unsafe_allow_html=True)
 
     import streamlit.components.v1 as components
-    components.html(f"""
+    components.html("""
     <script>
     const parent = window.parent.document;
     const links = parent.querySelectorAll('.report-nav-link');
-    links.forEach(link => {{
-      link.addEventListener('click', function(e) {{
-        parent.querySelectorAll('.report-nav-item').forEach(item => {{
+    links.forEach(link => {
+      link.addEventListener('click', function(e) {
+        parent.querySelectorAll('.report-nav-item').forEach(item => {
           item.style.color = '#888';
           item.style.background = 'transparent';
-        }});
+        });
         const target = this.querySelector('.report-nav-item');
-        if(target) {{
-            target.style.color = '{d_color}';
-            target.style.background = '{d_color}20';
-        }}
-      }});
-    }});
+        if(target) {
+            target.style.color = '#E8002D';
+            target.style.background = 'rgba(232,0,45,0.06)';
+        }
+      });
+    });
     </script>
     """, height=0, width=0)
 
 # -- Load Data --
-with st.spinner(f"Generating reports for {driver_name}..."):
-    df = get_complete_driver_data(driver_name)
+with st.spinner("Loading race data..."):
+    df = get_race_data(st.session_state.selected_race)
 summary = get_race_summary(df)
 
-cache_key = f"report_data_{st.session_state.selected_race}_{driver_name}"
+cache_key = f"report_data_{st.session_state.selected_race}"
 if cache_key not in st.session_state:
     try:
         from core.granite import generate_report
-        st.session_state[cache_key] = generate_report(df, driver_name=driver_name)
+        st.session_state[cache_key] = generate_report(df)
     except Exception:
         st.session_state[cache_key] = {
             "executive_summary": (
-                f"{driver_name}'s psychological performance at the {st.session_state.selected_race} demonstrated "
-                f"the hallmarks of a driver under pressure. His average stress "
-                f"index of {summary.get('avg_stress', 'N/A')}/10 reflects a race defined by strategic tension, "
-                f"peaking at {summary.get('peak_stress', 'N/A')}/10 on Lap {summary.get('peak_lap', 'N/A')}. "
-                f"Decision quality averaged {summary.get('avg_quality', 'N/A')}/10 across "
-                f"the race. Despite psychological pressure, {driver_name} maintained composure."
+                f"Max Verstappen's psychological performance at the {st.session_state.selected_race} demonstrated "
+                f"the hallmarks of a World Champion under pressure. His average stress "
+                f"index of {summary['avg_stress']}/10 reflects a race defined by strategic tension, "
+                f"peaking at {summary['peak_stress']}/10 on Lap {summary['peak_lap']} during the "
+                f"Safety Car period. Decision quality averaged {summary['avg_quality']}/10 across "
+                f"the race, with a notable dip during the critical Safety Car window. "
+                f"Despite maximum psychological pressure, Verstappen recovered composure to secure victory."
             ),
-            "key_insight": f"Lap {summary.get('peak_lap', 'N/A')} marked a critical convergence of external pressure and internal strain, revealing {driver_name}'s breaking point — and his recovery."
+            "key_insight": (
+                f"Lap {summary['peak_lap']} marked a critical convergence of external pressure and internal strain, "
+                f"revealing the champion's breaking point -- and his recovery."
+            ),
         }
 
 report = st.session_state[cache_key]
@@ -119,17 +118,17 @@ header_l, header_r = st.columns([3, 1])
 with header_l:
     st.markdown(f"""
 <div style="padding-top:3rem;">
-  <span class="pm-badge" style="background:{d_color};color:white;">REPORT : {driver_name.upper()}</span>
+  <span class="pm-badge pm-badge-red">REPORT</span>
   <div style="font-family:'Rajdhani',sans-serif;font-size:2.5rem;font-weight:700;
               letter-spacing:0.05em;margin-top:0.3rem;">{st.session_state.selected_race.upper()}</div>
   <div style="font-family:'Share Tech Mono',monospace;font-size:0.7rem;color:#888;">
     COMPREHENSIVE PSYCHOLOGICAL PERFORMANCE ANALYSIS</div>
 </div>""", unsafe_allow_html=True)
 with header_r:
-    st.markdown(f'<div style="text-align:right;padding-top:2rem;"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="{d_color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg></div>',
+    st.markdown('<div style="text-align:right;padding-top:2rem;"><svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg></div>',
                 unsafe_allow_html=True)
 
-st.markdown(f'<div style="height:2px;background:linear-gradient(90deg,{d_color},transparent);margin:0.5rem 0 1rem;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:2px;background:linear-gradient(90deg,#E8002D,transparent);margin:0.5rem 0 1rem;"></div>', unsafe_allow_html=True)
 
 # Race metadata
 meta = get_race_metadata(st.session_state.selected_race)
@@ -151,7 +150,7 @@ st.markdown('<div style="height:1rem"></div>', unsafe_allow_html=True)
 col_gauge, col_summary, col_insight = st.columns([1.2, 2, 1.5], gap="medium")
 
 with col_gauge:
-    st.plotly_chart(gauge_chart(summary.get("overall_score", 5.0), "OVERALL PSYCH SCORE"),
+    st.plotly_chart(gauge_chart(summary["overall_score"], "OVERALL PSYCH SCORE"),
                     key="rpt_gauge", width="stretch", config={"displayModeBar": False})
 
 with col_summary:
@@ -159,10 +158,10 @@ with col_summary:
                 'letter-spacing:0.15em;color:#888;margin-bottom:0.4rem;">EXECUTIVE SUMMARY</div>',
                 unsafe_allow_html=True)
     st.markdown(f"""
-<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid {d_color};
+<div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid #E8002D;
             border-radius:8px;padding:1rem 1.2rem;">
   <div style="font-family:'Rajdhani',sans-serif;font-size:0.9rem;color:var(--text-muted);line-height:1.8;">
-    {report.get('executive_summary', 'N/A')}</div>
+    {report['executive_summary']}</div>
 </div>""", unsafe_allow_html=True)
 
 with col_insight:
@@ -171,9 +170,9 @@ with col_insight:
                 unsafe_allow_html=True)
     st.markdown(f"""
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.2rem;text-align:center;">
-  <div style="font-size:2rem;color:{d_color};">&ldquo;</div>
+  <div style="font-size:2rem;color:#E8002D;">&ldquo;</div>
   <div style="font-family:'Rajdhani',sans-serif;font-size:0.95rem;font-weight:600;
-              font-style:italic;line-height:1.6;margin:0.3rem 0 0.6rem;">{report.get('key_insight', 'N/A')}</div>
+              font-style:italic;line-height:1.6;margin:0.3rem 0 0.6rem;">{report['key_insight']}</div>
   <div style="display:flex;align-items:center;justify-content:center;gap:6px;">
     <span style="font-family:'Share Tech Mono',monospace;font-size:0.5rem;
                  color:#4A9EFF;background:var(--bg-secondary);padding:2px 6px;border-radius:3px;
@@ -187,10 +186,10 @@ st.markdown('<div id="section-03" style="height:0.8rem"></div>', unsafe_allow_ht
 # ====== ROW 2 - 4 METRIC CARDS ======
 mc1, mc2, mc3, mc4 = st.columns(4)
 for col, (label, val, sub, color, border) in zip([mc1, mc2, mc3, mc4], [
-    ("PEAK STRESS", f"{summary.get('peak_stress', 'N/A')}", f"Lap {summary.get('peak_lap', 'N/A')}", d_color, d_color),
-    ("DECISION QUALITY", f"{summary.get('avg_quality', 'N/A')}", "Race Average", "#4A9EFF", "var(--border)"),
-    ("MENTAL FATIGUE", f"{summary.get('avg_fatigue', 'N/A')}", fatigue_label(summary.get('avg_fatigue', 5.0)), "#FF7B00", "var(--border)"),
-    ("RADIO EVENTS", f"{summary.get('total_radio', 'N/A')}", "Total Messages", "var(--text-primary)", "var(--border)"),
+    ("PEAK STRESS", f"{summary['peak_stress']}", f"Lap {summary['peak_lap']}", "#E8002D", "#E8002D"),
+    ("DECISION QUALITY", f"{summary['avg_quality']}", "Race Average", "#4A9EFF", "var(--border)"),
+    ("MENTAL FATIGUE", f"{summary['avg_fatigue']}", fatigue_label(summary['avg_fatigue']), "#FF7B00", "var(--border)"),
+    ("RADIO EVENTS", f"{summary['total_radio']}", "Total Messages", "var(--text-primary)", "var(--border)"),
 ]):
     with col:
         st.markdown(f"""
@@ -209,12 +208,12 @@ with col_trace:
     st.markdown('<div id="section-04" style="font-family:\'Share Tech Mono\',monospace;font-size:0.6rem;'
                 'letter-spacing:0.15em;color:#888;margin-bottom:0.4rem;">PSYCHOLOGICAL TRACE OVERVIEW</div>',
                 unsafe_allow_html=True)
-    st.plotly_chart(report_trace_chart(df, color=d_color), key="rpt_trace", width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(report_trace_chart(df), key="rpt_trace", width="stretch", config={"displayModeBar": False})
 with col_donut:
     st.markdown('<div id="section-05" style="font-family:\'Share Tech Mono\',monospace;font-size:0.6rem;'
                 'letter-spacing:0.15em;color:#888;margin-bottom:0.4rem;">EVENTS SUMMARY</div>',
                 unsafe_allow_html=True)
-    st.plotly_chart(events_donut_chart(df, color=d_color), key="rpt_donut", width="stretch", config={"displayModeBar": False})
+    st.plotly_chart(events_donut_chart(df), key="rpt_donut", width="stretch", config={"displayModeBar": False})
 
 st.markdown('<div style="height:0.8rem"></div>', unsafe_allow_html=True)
 
@@ -233,7 +232,7 @@ with col_cog:
     fig_radar = go.Figure(data=go.Scatterpolar(
         r=[8.5, 9.2, 7.8, 8.9, 9.5],
         theta=['Focus', 'Reaction Time', 'Adaptability', 'Consistency', 'Spatial Awareness'],
-        fill='toself', fillcolor=hex_to_rgba_safe(d_color, 0.2), line=dict(color=d_color, width=2)
+        fill='toself', fillcolor='rgba(232,0,45,0.2)', line=dict(color='#E8002D', width=2)
     ))
     fig_radar.update_layout(
         polar=dict(
@@ -248,16 +247,16 @@ with col_cog:
 
 with col_bio:
     st.markdown('<div id="section-07" style="height:0.1rem"></div>', unsafe_allow_html=True)
-    st.markdown(f"""
+    st.markdown("""
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;">
       <div style="font-family:'Share Tech Mono';color:var(--text-muted);font-size:0.7rem;margin-bottom:1rem;">ESTIMATED BIOMETRICS</div>
       <div style="display:flex;justify-content:space-between;margin-bottom:0.8rem;">
         <span style="color:var(--text-primary);">Peak Heart Rate</span>
-        <span style="color:{d_color};font-family:'Rajdhani';font-weight:700;font-size:1.2rem;">{driver.get('base_hr', 145) + 39} BPM</span>
+        <span style="color:#E8002D;font-family:'Rajdhani';font-weight:700;font-size:1.2rem;">184 BPM</span>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:0.8rem;">
         <span style="color:var(--text-primary);">Avg Heart Rate</span>
-        <span style="color:#4A9EFF;font-family:'Rajdhani';font-weight:700;font-size:1.2rem;">{driver.get('base_hr', 145) + 17} BPM</span>
+        <span style="color:#4A9EFF;font-family:'Rajdhani';font-weight:700;font-size:1.2rem;">162 BPM</span>
       </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:0.8rem;">
         <span style="color:var(--text-primary);">Respiration Rate</span>
@@ -278,34 +277,26 @@ st.markdown('<div id="section-08" style="font-family:\'Share Tech Mono\',monospa
             unsafe_allow_html=True)
 col_radio, col_sector = st.columns([1.5, 1], gap="medium")
 with col_radio:
-    radio_laps = df[df['radio_text'] != "No transmission."]
-    radio_rows = ""
-    for _, row in radio_laps.head(4).iterrows():
-        lap_idx = int(row['lap'])
-        text = str(row['radio_text']).strip('"\'')
-        
-        if text.startswith("http") and text.endswith(".mp3"):
-            display_text = f'<audio controls src="{text}" style="height:30px; max-width:200px;"></audio>'
-        else:
-            display_text = f'"{text}"'
-            
-        radio_rows += f'<tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">{lap_idx}</td><td style="padding:6px 4px;">{display_text}</td><td style="color:{d_color};">Logged</td></tr>'
-
-    st.markdown(f"""
+    st.markdown("""
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1rem;height:100%;">
         <div style="font-family:'Share Tech Mono';color:var(--text-muted);font-size:0.7rem;margin-bottom:0.8rem;">KEY RADIO TRANSMISSIONS</div>
         <table style="width:100%;font-size:0.8rem;color:var(--text-primary);border-collapse:collapse;">
             <tr style="border-bottom:1px solid var(--border);color:var(--text-muted);"><th style="text-align:left;padding:4px;">Lap</th><th style="text-align:left;padding:4px;">Message</th><th style="text-align:left;padding:4px;">Sentiment</th></tr>
-            {radio_rows}
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">14</td><td style="padding:6px 4px;">"Tyres are dropping off, mostly rears."</td><td style="color:#FF7B00;">Concerned</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">32</td><td style="padding:6px 4px;">"Understood. Keep the gap at 2.5s."</td><td style="color:#4A9EFF;">Focused</td></tr>
+            <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 4px;">47</td><td style="padding:6px 4px;">"Safety car? Give me delta!"</td><td style="color:#E8002D;">Stressed</td></tr>
+            <tr><td style="padding:6px 4px;">58</td><td style="padding:6px 4px;">"Yes guys! Fantastic job today!"</td><td style="color:#00C853;">Euphoric</td></tr>
         </table>
     </div>
     """, unsafe_allow_html=True)
 with col_sector:
-    st.markdown('<div id="section-09" class="report-section">', unsafe_allow_html=True)
-    st.markdown(f'<h2>09 // Sector Performance vs Baseline</h2>', unsafe_allow_html=True)
+    st.markdown('<div id="section-09" style="height:0.1rem"></div>', unsafe_allow_html=True)
+    dark = st.session_state.get("dark_mode", True)
+    muted_color = "#888888" if dark else "#555555"
+    grid_color = "#333333" if dark else "#E0E0E0"
     
     fig_sector = go.Figure(data=[
-        go.Bar(name=driver_name, x=['S1', 'S2', 'S3'], y=[27.4, 36.2, 33.8], marker_color=d_color),
+        go.Bar(name='Verstappen', x=['S1', 'S2', 'S3'], y=[27.4, 36.2, 33.8], marker_color='#E8002D'),
         go.Bar(name='Field Avg', x=['S1', 'S2', 'S3'], y=[27.8, 36.7, 34.1], marker_color='#4A9EFF')
     ])
     fig_sector.update_layout(barmode='group', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
@@ -339,7 +330,7 @@ st.markdown('<div id="section-11" style="font-family:\'Share Tech Mono\',monospa
             unsafe_allow_html=True)
 col_rec, col_data = st.columns([1.5, 1], gap="medium")
 with col_rec:
-    st.markdown(f"""
+    st.markdown("""
     <div style="background:var(--bg-card);border:1px solid var(--border);border-left:3px solid #4A9EFF;border-radius:8px;padding:1rem;height:100%;">
         <div style="font-family:'Rajdhani',sans-serif;font-size:1.1rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-primary);">ACTIONABLE INSIGHTS</div>
         <ul style="font-size:0.85rem;color:var(--text-muted);padding-left:1.2rem;margin-bottom:0;">
@@ -352,12 +343,12 @@ with col_rec:
 with col_data:
     st.markdown('<div id="section-12" style="height:0.1rem"></div>', unsafe_allow_html=True)
     st.markdown("""
-    <div style="background:var(--bg-card);border:1px dashed var(--border);border-radius:8px;padding:1rem;height:100%;">
-        <div style="font-family:'Share Tech Mono';color:var(--text-muted);font-size:0.7rem;margin-bottom:0.8rem;">DATA SOURCES & MODELS</div>
-        <div style="font-size:0.8rem;color:var(--text-primary);margin-bottom:0.3rem;">&#8226; <strong>Telemetry:</strong> FastF1 & OpenF1 API</div>
-        <div style="font-size:0.8rem;color:var(--text-primary);margin-bottom:0.3rem;">&#8226; <strong>NLP & Insights:</strong> IBM Granite 3.1</div>
-        <div style="font-size:0.8rem;color:var(--text-primary);margin-bottom:0.3rem;">&#8226; <strong>Biometrics:</strong> Simulated VEGAIQ Algorithms</div>
-        <div style="font-size:0.8rem;color:var(--text-primary);">&#8226; <strong>Analytics:</strong> Streamlit + Plotly</div>
+    <div style="background:rgba(255,255,255,0.02);border:1px dashed #444;border-radius:8px;padding:1rem;height:100%;">
+        <div style="font-family:'Share Tech Mono';color:#888;font-size:0.7rem;margin-bottom:0.8rem;">DATA SOURCES & MODELS</div>
+        <div style="font-size:0.8rem;color:#ccc;margin-bottom:0.3rem;">&#8226; <strong>Telemetry:</strong> FastF1 & OpenF1 API</div>
+        <div style="font-size:0.8rem;color:#ccc;margin-bottom:0.3rem;">&#8226; <strong>NLP & Insights:</strong> IBM Granite 3.1</div>
+        <div style="font-size:0.8rem;color:#ccc;margin-bottom:0.3rem;">&#8226; <strong>Biometrics:</strong> Simulated PitMind Algorithms</div>
+        <div style="font-size:0.8rem;color:#ccc;">&#8226; <strong>Analytics:</strong> Streamlit + Plotly</div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -390,9 +381,8 @@ def generate_pdf():
                 .decode("latin-1"))
 
     pdf.set_font("Helvetica", "B", 24)
-    # Using red for the title, or standard gray
     pdf.set_text_color(232, 0, 45)
-    pdf.cell(0, 15, "VEGAIQ", new_x="LMARGIN", new_y="NEXT", align="C")
+    pdf.cell(0, 15, "PitMind", new_x="LMARGIN", new_y="NEXT", align="C")
     pdf.set_font("Helvetica", "", 10)
     pdf.set_text_color(100, 100, 100)
     pdf.cell(0, 8, "Understand the mind. Beyond the data.", new_x="LMARGIN", new_y="NEXT", align="C")
@@ -401,34 +391,33 @@ def generate_pdf():
     pdf.set_font("Helvetica", "B", 18)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 12, f"{st.session_state.selected_race} - Psychological Performance Report", new_x="LMARGIN", new_y="NEXT")
-    
-    pdf.set_font("Helvetica", size=10)
-    pdf.set_text_color(150, 150, 150)
-    pdf.cell(0, 8, f"Driver: {driver_name} | {driver['team']} | Margin: {meta['margin']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 10)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 8, f"Driver: Max Verstappen | Red Bull Racing | Result: P1 ({meta['margin']})", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
 
     pdf.set_font("Helvetica", "B", 12)
     pdf.set_text_color(0, 0, 0)
     pdf.cell(0, 10, "Key Performance Metrics", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
-    pdf.cell(0, 7, f"Overall Psychological Score: {summary.get('overall_score', 'N/A')}/10", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f"Peak Stress: {summary.get('peak_stress', 'N/A')}/10 (Lap {summary.get('peak_lap', 'N/A')})", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f"Average Decision Quality: {summary.get('avg_quality', 'N/A')}/10", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f"Average Mental Fatigue: {summary.get('avg_fatigue', 'N/A')}/10", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 7, f"Radio Events: {summary.get('total_radio', 'N/A')}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, f"Overall Psychological Score: {summary['overall_score']}/10", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, f"Peak Stress: {summary['peak_stress']}/10 (Lap {summary['peak_lap']})", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, f"Average Decision Quality: {summary['avg_quality']}/10", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, f"Average Mental Fatigue: {summary['avg_fatigue']}/10", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, f"Radio Events: {summary['total_radio']}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
 
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "Executive Summary", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "", 10)
-    pdf.multi_cell(0, 6, safe(report.get("executive_summary", "N/A")))
+    pdf.multi_cell(0, 6, safe(report["executive_summary"]))
     pdf.ln(5)
 
     pdf.set_font("Helvetica", "B", 12)
     pdf.cell(0, 10, "Key Insight", new_x="LMARGIN", new_y="NEXT")
     pdf.set_font("Helvetica", "I", 10)
     pdf.set_text_color(232, 0, 45)
-    pdf.multi_cell(0, 6, safe(report.get("key_insight", "N/A")))
+    pdf.multi_cell(0, 6, safe(report["key_insight"]))
     pdf.set_text_color(100, 100, 100)
     pdf.set_font("Helvetica", "", 8)
     pdf.cell(0, 6, "-- IBM Granite 3.1 Analysis", new_x="LMARGIN", new_y="NEXT")
@@ -451,9 +440,9 @@ def generate_pdf():
         lt = format_lap_time(float(row["lap_time_seconds"]))
         vals = [
             str(int(row["lap"])), lt,
-            f'{float(row.get("stress_index", 0)):.1f}',
-            f'{float(row.get("decision_quality", 0)):.1f}',
-            f'{float(row.get("mental_fatigue", 0)):.1f}',
+            f'{float(row["stress_index"]):.1f}',
+            f'{float(row["decision_quality"]):.1f}',
+            f'{float(row["mental_fatigue"]):.1f}',
         ]
         for v, w in zip(vals, col_widths):
             pdf.cell(w, 6, v, border=1, align="C")
@@ -462,7 +451,7 @@ def generate_pdf():
     pdf.ln(10)
     pdf.set_font("Helvetica", "", 8)
     pdf.set_text_color(150, 150, 150)
-    pdf.cell(0, 6, "Generated by VEGAIQ | Powered by IBM Granite 3.1 | IBM SkillsBuild AI Builders Challenge 2026", align="C")
+    pdf.cell(0, 6, "Generated by PitMind | Powered by IBM Granite 3.1 | IBM SkillsBuild AI Builders Challenge 2026", align="C")
 
     return bytes(pdf.output())
 
@@ -477,18 +466,16 @@ with dl_col:
         pdf_bytes = generate_pdf()
         if pdf_bytes:
             safe_name = str(st.session_state.selected_race).lower().replace(" ", "_")
-            safe_driver = driver_name.lower().replace(" ", "_")
             st.download_button(
-                label=f"DOWNLOAD FULL REPORT ({driver_name.upper()})",
+                label="DOWNLOAD FULL REPORT (PDF)",
                 data=pdf_bytes,
-                file_name=f"vegaiq_{safe_name}_{safe_driver}_report.pdf",
+                file_name=f"pitmind_{safe_name}_report.pdf",
                 mime="application/pdf",
                 key="pdf_dl",
-                type="primary",
             )
     except Exception as e:
         st.info(f"PDF export requires fpdf2: pip install fpdf2 ({e})")
 
 # ====== FOOTER ======
-st.markdown(f'<div style="height:2px;background:linear-gradient(90deg,{d_color},transparent);margin:1.5rem 0 0.5rem;"></div>', unsafe_allow_html=True)
+st.markdown('<div style="height:2px;background:linear-gradient(90deg,#E8002D,transparent);margin:1.5rem 0 0.5rem;"></div>', unsafe_allow_html=True)
 render_ibm_label("IBM GRANITE 3.1 &middot; IBM BOB &middot; LANGFLOW &middot; OpenF1 + FastF1")

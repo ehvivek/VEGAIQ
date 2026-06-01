@@ -176,58 +176,6 @@ def generate_biometrics(lap_data: dict) -> dict:
     }
 
 
-DRIVER_BASELINES = {
-    'VER': {'base_hr': 145, 'stress_sensitivity': 1.2},
-    'PER': {'base_hr': 148, 'stress_sensitivity': 1.0},
-    'NOR': {'base_hr': 142, 'stress_sensitivity': 1.1},
-    'PIA': {'base_hr': 140, 'stress_sensitivity': 0.9},
-    'LEC': {'base_hr': 150, 'stress_sensitivity': 1.3},
-    'SAI': {'base_hr': 146, 'stress_sensitivity': 1.0},
-    'HAM': {'base_hr': 143, 'stress_sensitivity': 0.8},
-    'RUS': {'base_hr': 144, 'stress_sensitivity': 1.0},
-}
-
-def get_mental_state(stress_index: float) -> str:
-    return calculate_mental_state(stress_index)
-
-def generate_driver_biometrics(lap_data: dict, driver_code: str) -> dict:
-    """Generate biometrics using driver-specific baseline"""
-    baseline = DRIVER_BASELINES.get(driver_code, DRIVER_BASELINES['VER'])
-    base_hr = baseline['base_hr']
-    sensitivity = baseline['stress_sensitivity']
-
-    tyre_age = lap_data.get('tyre_age', 10)
-    tyre_age_factor = 1.0 if tyre_age > 25 else (tyre_age / 25.0)
-
-    import json
-    events_raw = lap_data.get("race_events", "[]")
-    if isinstance(events_raw, str):
-        try:
-            events = json.loads(events_raw)
-        except Exception:
-            events = []
-    else:
-        events = events_raw if isinstance(events_raw, list) else []
-
-    safety_car = 1 if "SAFETY_CAR" in events else 0
-
-    hr = base_hr + sensitivity * (
-        lap_data.get('gap_to_p2', 0) * 15 +
-        safety_car * 20 +
-        tyre_age_factor * 12 +
-        abs(lap_data.get('radio_sentiment', 0.0)) * 10
-    )
-
-    stress = lap_data.get('stress_index', 5)
-    return {
-        'heart_rate': min(int(hr), 200),
-        'eye_tracking': 'ERRATIC' if stress > 7.5 else 'MODERATE' if stress > 5 else 'FOCUSED',
-        'reaction_delta': -int((stress - 5) * 68 * sensitivity),
-        'mental_state': get_mental_state(stress)
-    }
-
-
-
 def enrich_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     """Apply biometric generation to all rows of the race dataframe."""
     df = df.copy()

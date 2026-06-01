@@ -86,23 +86,11 @@ button[aria-label="Expand sidebar"] {
     padding: 0.2rem !important;
     margin: 0.5rem !important;
 }
-[data-testid="collapsedControl"],
-[data-testid="stSidebarCollapsedControl"],
-.stSidebarCollapsedControl,
-button[aria-label="Expand sidebar"],
-button[kind="header"] {
-    color: var(--text-primary) !important;
-}
 [data-testid="collapsedControl"] svg,
 [data-testid="stSidebarCollapsedControl"] svg,
 .stSidebarCollapsedControl svg,
-button[aria-label="Expand sidebar"] svg,
-button[kind="header"] svg,
-[data-testid="collapsedControl"] path,
-button[kind="header"] path {
+button[aria-label="Expand sidebar"] svg {
     fill: var(--text-primary) !important;
-    stroke: var(--text-primary) !important;
-    color: var(--text-primary) !important;
 }
 
 /* == HIDE Streamlit auto-generated page navigation == */
@@ -207,15 +195,6 @@ section[data-testid="stSidebar"] > div:first-child {
 [data-testid="stCheckbox"] label,
 [data-testid="stCheckbox"] p,
 [data-testid="stCheckbox"] span {
-    color: var(--text-primary) !important;
-}
-
-/* == Generic Labels (Audio Input, etc) == */
-[data-testid="stWidgetLabel"] p,
-[data-testid="stWidgetLabel"],
-[data-testid="stAudioInput"] label p,
-[data-testid="stAudioInput"] label,
-label {
     color: var(--text-primary) !important;
 }
 
@@ -477,16 +456,7 @@ RACE_METADATA = {
 
 def get_race_metadata(race_name: str) -> dict:
     """Return dictionary of race-specific metadata."""
-    meta = dict(RACE_METADATA.get(race_name, RACE_METADATA["Abu Dhabi GP 2024"]))
-    
-    # Adjust lap count if a non-Race session is selected
-    session_type = st.session_state.get("selected_session", "Race")
-    if session_type == "Sprint":
-        meta["laps"] = 19
-    elif session_type == "Qualifying":
-        meta["laps"] = 15
-        
-    return meta
+    return RACE_METADATA.get(race_name, RACE_METADATA["Abu Dhabi GP 2024"])
 
 
 
@@ -523,7 +493,7 @@ def render_logo(width="180px", center=False):
     origin = "center center" if center else "left center"
     
     # Counteract baked-in left padding for the top bar logo so it aligns flush left with the tagline
-    shift_left = ""
+    shift_left = "" if center else "margin-left: -28%;"
     
     is_dark = st.session_state.get("dark_mode", True)
     
@@ -558,40 +528,26 @@ def render_logo(width="180px", center=False):
 def sidebar_driver_card():
     """Render the driver info card in the sidebar."""
     selected_race = st.session_state.get("selected_race", "Abu Dhabi GP 2024")
-    selected_session = st.session_state.get("selected_session", "Race")
-    driver_name = st.session_state.get("selected_driver", "Max Verstappen")
-    
-    from utils.helpers import DRIVER_INFO
-    d_info = DRIVER_INFO.get(driver_name, DRIVER_INFO["Max Verstappen"])
-    d_num = d_info["number"]
-    d_team = d_info["team"]
-    d_color = d_info["color"]
-    
-    img_src = "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/M/MAXVER01_Max_Verstappen/maxver01.png"
-    if driver_name != "Max Verstappen":
-        # Placeholder silhouette for other drivers
-        img_src = "https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/fallback/driver-fallback-image.png"
-
     meta = get_race_metadata(selected_race)
     st.markdown(f"""
 <div style="text-align:center;padding:0 0 0.5rem;">
   <div style="font-family:'Rajdhani',sans-serif;font-size:3.5rem;font-weight:700;
-              color:{d_color};line-height:1;">{d_num}</div>
+              color:#E8002D;line-height:1;">1</div>
   <div style="width:64px;height:64px;border-radius:50%;background:var(--bg-secondary);
-              border:2px solid {d_color};margin:0.4rem auto;display:flex;
+              border:2px solid #E8002D;margin:0.4rem auto;display:flex;
               align-items:center;justify-content:center;overflow:hidden;">
-      <img src="{img_src}" style="width:100%;height:100%;object-fit:cover;object-position:top;background:#1A1A1A;">
+      <img src="https://media.formula1.com/d_driver_fallback_image.png/content/dam/fom-website/drivers/M/MAXVER01_Max_Verstappen/maxver01.png" style="width:100%;height:100%;object-fit:cover;object-position:top;background:#1A1A1A;">
   </div>
   <div style="font-family:'Rajdhani',sans-serif;font-weight:700;font-size:1rem;
-              letter-spacing:0.05em;color:var(--text-primary);text-transform:uppercase;">{driver_name}</div>
+              letter-spacing:0.05em;color:var(--text-primary);">MAX VERSTAPPEN</div>
   <div style="font-family:'Share Tech Mono',monospace;font-size:0.65rem;
-              color:var(--text-muted);letter-spacing:0.1em;margin-top:2px;">{d_team}</div>
+              color:var(--text-muted);letter-spacing:0.1em;margin-top:2px;">RED BULL RACING</div>
 </div>
 <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:6px;
             padding:0.6rem 0.8rem;margin:0.5rem 0;font-family:'Share Tech Mono',monospace;
             font-size:0.7rem;color:var(--text-muted);">
   <div style="margin-bottom:3px;">{meta['flag_entity']} {selected_race.upper()}</div>
-  <div><span style="color:{d_color};">&#9679;</span> {selected_session.upper()} &middot; {meta['laps']} LAPS</div>
+  <div><span style="color:#E8002D;">&#9679;</span> RACE &middot; {meta['laps']} LAPS</div>
 </div>""", unsafe_allow_html=True)
 
 
