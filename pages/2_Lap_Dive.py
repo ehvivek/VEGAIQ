@@ -77,16 +77,23 @@ with top_m:
 with top_r:
     st.markdown('<div style="padding-top:2.5rem;"></div>', unsafe_allow_html=True)
     nl, ni, nr = st.columns([1.2, 1.5, 1.2])
+
+    def go_prev():
+        st.session_state.selected_lap = max(1, st.session_state.selected_lap - 1)
+
+    def go_next():
+        st.session_state.selected_lap = min(total_laps, st.session_state.selected_lap + 1)
+
+    def on_lap_input():
+        st.session_state.selected_lap = st.session_state._lap_input
+
     with nl:
-        if st.button("< PREV", key="prev", use_container_width=True):
-            st.session_state.selected_lap = max(1, lap_num - 1)
-            st.rerun()
+        st.button("< PREV", key="prev", use_container_width=True, on_click=go_prev)
     with ni:
-        st.number_input("Lap", 1, total_laps, key="selected_lap", label_visibility="collapsed")
+        st.number_input("Lap", 1, total_laps, value=st.session_state.selected_lap,
+                         label_visibility="collapsed", key="_lap_input", on_change=on_lap_input)
     with nr:
-        if st.button("NEXT >", key="next", use_container_width=True):
-            st.session_state.selected_lap = min(total_laps, lap_num + 1)
-            st.rerun()
+        st.button("NEXT >", key="next", use_container_width=True, on_click=go_next)
 
 st.markdown('<div style="height:2px;background:linear-gradient(90deg,#E8002D,transparent);margin:0.3rem 0 1rem;"></div>', unsafe_allow_html=True)
 
