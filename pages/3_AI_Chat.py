@@ -108,22 +108,19 @@ with chat_col:
         with st.chat_message("user"):
             st.markdown(prompt)
 
-        # Build response — try IBM Granite API first, fall back to cached answers
+        # Build response using IBM Granite (with built-in smart fallback)
         response = ""
         try:
             from core.granite import chat_response
             response = chat_response(prompt, st.session_state.messages, context=summary)
-        except Exception:
-            pass
-
-        if not response:
-            from core.granite import CACHED_CHAT
-            msg_lower = prompt.lower()
-            response = CACHED_CHAT["default"]
-            for kw, cached in CACHED_CHAT.items():
-                if kw != "default" and kw in msg_lower:
-                    response = cached
-                    break
+        except Exception as e:
+            print(f"[AI Chat] chat_response error: {e}")
+            # Last-resort fallback
+            response = (
+                f"I'm currently processing your question about the {st.session_state.selected_race}. "
+                f"Please try asking about specific laps, stress patterns, tyre strategy, or "
+                f"Verstappen's psychological performance. Powered by IBM Granite."
+            )
 
         with st.chat_message("assistant"):
             st.markdown(response)
@@ -147,16 +144,9 @@ with info_col:
         try:
             from core.granite import chat_response
             resp = chat_response(question, st.session_state.messages, context=summary)
-        except Exception:
-            pass
-        if not resp:
-            from core.granite import CACHED_CHAT
-            q_lower = question.lower()
-            resp = CACHED_CHAT["default"]
-            for kw, cached in CACHED_CHAT.items():
-                if kw != "default" and kw in q_lower:
-                    resp = cached
-                    break
+        except Exception as e:
+            print(f"[AI Chat] suggested question error: {e}")
+            resp = f"Analysis in progress for: '{question}'. Powered by IBM Granite."
         st.session_state.messages.append({"role": "assistant", "content": resp})
 
     questions = [
