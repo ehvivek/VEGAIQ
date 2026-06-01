@@ -1,7 +1,8 @@
 """
 core/whisper_service.py
-PitMind — OpenAI Whisper audio transcription service.
-Handles microphone audio input → text transcript for the AI chat page.
+PitMind — Audio transcription service.
+Uses SpeechRecognition (Google Web Speech API) as primary engine.
+Falls back to OpenAI Whisper if installed locally.
 """
 
 import os
@@ -13,6 +14,43 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+# ─────────────────────────────────────────────
+# Primary: SpeechRecognition + Google Web Speech
+# ─────────────────────────────────────────────
+
+def _transcribe_with_google(audio_bytes: bytes) -> dict:
+    """Transcribe audio using SpeechRecognition's free Google Web Speech API."""
+    try:
+        import speech_recognition as sr
+
+        recognizer = sr.Recognizer()
+
+        # Write bytes to a temp WAV file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp.write(audio_bytes)
+            tmp_path = tmp.name
+
+        try:
+            with sr.AudioFile(tmp_path) as source:
+                audio_data = recognizer.record(source)
+
+            text = recognizer.recognize_google(audio_data, language="en-US")
+            return {"text": text.strip(), "language": "en", "confidence": 0.9}
+        finally:
+            os.unlink(tmp_path)
+
+    except ImportError:
+        return None  # SpeechRecognition not installed
+    except Exception as e:
+        print(f"[SpeechRecognition] Error: {e}")
+        return {"text": "", "language": "en", "confidence": 0.0, "error": str(e)}
+
+
+# ─────────────────────────────────────────────
+# Fallback: OpenAI Whisper (local only)
+# ─────────────────────────────────────────────
+
 _whisper_model = None
 
 
@@ -22,9 +60,8 @@ def _load_whisper(model_size: str = "base"):
     if _whisper_model is None:
         try:
             import whisper
-            import os
             import certifi
-            
+
             # macOS Python SSL certificate fix for urllib/torch
             os.environ['SSL_CERT_FILE'] = certifi.where()
 
@@ -32,39 +69,28 @@ def _load_whisper(model_size: str = "base"):
             _whisper_model = whisper.load_model(model_size)
             print("[Whisper] Model ready.")
         except ImportError:
-            print("[Whisper] openai-whisper not installed. Voice input disabled.")
+            print("[Whisper] openai-whisper not installed. Using Google Speech API.")
             _whisper_model = None
     return _whisper_model
 
 
-def transcribe_audio_bytes(audio_bytes: bytes, model_size: str = "base") -> dict:
-    """
-    Transcribe audio bytes (WAV/MP3/etc.) using Whisper.
-
-    Args:
-        audio_bytes: Raw audio data as bytes
-        model_size: Whisper model size ('tiny', 'base', 'small', 'medium')
-
-    Returns:
-        dict with 'text', 'language', 'confidence'
-    """
+def _transcribe_with_whisper(audio_bytes: bytes, model_size: str = "base") -> dict:
+    """Transcribe audio using OpenAI Whisper (local fallback)."""
     model = _load_whisper(model_size)
     if model is None:
-        return {"text": "", "language": "en", "confidence": 0.0, "error": "Whisper not available"}
+        return None
 
     try:
-        # Write to temp file (Whisper needs a file path)
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(audio_bytes)
             tmp_path = tmp.name
 
         result = model.transcribe(tmp_path, language="en", fp16=False)
-        os.unlink(tmp_path)  # cleanup
+        os.unlink(tmp_path)
 
         text = result.get("text", "").strip()
         language = result.get("language", "en")
 
-        # Estimate confidence from log probability
         segments = result.get("segments", [])
         if segments:
             avg_logprob = np.mean([s.get("avg_logprob", -1.0) for s in segments])
@@ -79,6 +105,29 @@ def transcribe_audio_bytes(audio_bytes: bytes, model_size: str = "base") -> dict
         return {"text": "", "language": "en", "confidence": 0.0, "error": str(e)}
 
 
+# ─────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────
+
+def transcribe_audio_bytes(audio_bytes: bytes, model_size: str = "base") -> dict:
+    """
+    Transcribe audio bytes using the best available engine.
+    Priority: SpeechRecognition (Google) > Whisper (local).
+    """
+    # Try Google Web Speech first (works on Streamlit Cloud)
+    result = _transcribe_with_google(audio_bytes)
+    if result is not None and result.get("text"):
+        return result
+
+    # Fallback to Whisper (local dev only)
+    result = _transcribe_with_whisper(audio_bytes, model_size)
+    if result is not None:
+        return result
+
+    return {"text": "", "language": "en", "confidence": 0.0,
+            "error": "No speech recognition engine available"}
+
+
 def transcribe_streamlit_audio(audio_value) -> dict:
     """
     Handle audio from Streamlit's st.audio_input() widget.
@@ -91,7 +140,7 @@ def transcribe_streamlit_audio(audio_value) -> dict:
         audio_bytes = audio_value.read() if hasattr(audio_value, "read") else bytes(audio_value)
         return transcribe_audio_bytes(audio_bytes)
     except Exception as e:
-        print(f"[Whisper] Streamlit audio error: {e}")
+        print(f"[Transcription] Streamlit audio error: {e}")
         return {"text": "", "language": "en", "confidence": 0.0, "error": str(e)}
 
 
@@ -112,7 +161,6 @@ def speak_text(text: str, rate: int = 160, volume: float = 0.9):
             engine = pyttsx3.init()
             engine.setProperty("rate", rate)
             engine.setProperty("volume", volume)
-            # Prefer a female voice if available
             voices = engine.getProperty("voices")
             for v in voices:
                 if "female" in v.name.lower() or "zira" in v.name.lower() or "karen" in v.name.lower():
@@ -128,7 +176,12 @@ def speak_text(text: str, rate: int = 160, volume: float = 0.9):
 
 
 def is_whisper_available() -> bool:
-    """Check if Whisper is installed and loadable."""
+    """Check if any speech recognition engine is available."""
+    try:
+        import speech_recognition
+        return True
+    except ImportError:
+        pass
     try:
         import whisper
         return True
