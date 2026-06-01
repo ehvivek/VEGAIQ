@@ -46,26 +46,6 @@ with st.sidebar:
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # Voice input in sidebar
-    st.markdown("---")
-    st.markdown('<div style="font-family:\'Share Tech Mono\',monospace;font-size:0.6rem;'
-                'letter-spacing:0.12em;color:#888;margin-bottom:0.3rem;">🎤 VOICE INPUT</div>',
-                unsafe_allow_html=True)
-    audio_val = st.audio_input("Record your question", key="audio_in", label_visibility="collapsed")
-    if audio_val is not None:
-        audio_size = len(audio_val.getvalue())
-        if st.session_state.get("last_audio_size") != audio_size:
-            st.session_state["last_audio_size"] = audio_size
-            from core.whisper_service import transcribe_streamlit_audio
-            with st.spinner("Transcribing..."):
-                res = transcribe_streamlit_audio(audio_val)
-                if res.get("text"):
-                    st.session_state["voice_prompt"] = res["text"]
-                    st.success(f'"{res["text"]}"')
-                    st.rerun()
-                elif res.get("error"):
-                    st.error(f"Error: {res['error']}")
-
 # ====== CHAT HEADER ======
 st.markdown("""
 <div style="height:0;overflow:visible;pointer-events:none;user-select:none;">
@@ -99,33 +79,36 @@ with chat_col:
         st.session_state[msg_key] = get_default_conversation(st.session_state.selected_race)
     st.session_state.messages = st.session_state[msg_key]
 
-    # ── Process voice input first (before rendering messages) ──
-    prompt = None
+    # Display messages
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
 
-    # Check for pending voice transcription from sidebar
-    if st.session_state.get("voice_prompt"):
-        prompt = st.session_state.pop("voice_prompt")
-
-    # ── Display all messages in a container ──
-    chat_container = st.container()
-    with chat_container:
-        for msg in st.session_state.messages:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-
-    # ── Text input (Streamlit pins this to the bottom automatically) ──
+    # Inputs
     text_prompt = st.chat_input("Ask about the race, driver psychology, or performance...")
+    audio_val = st.audio_input("Voice Input (Powered by Whisper)", key="audio_in")
+    
+    prompt = None
     if text_prompt:
         prompt = text_prompt
+    elif audio_val is not None:
+        audio_size = len(audio_val.getvalue())
+        if st.session_state.get("last_audio_size") != audio_size:
+            st.session_state["last_audio_size"] = audio_size
+            from core.whisper_service import transcribe_streamlit_audio
+            with st.spinner("Whisper is transcribing..."):
+                res = transcribe_streamlit_audio(audio_val)
+                if res.get("text"):
+                    prompt = res["text"]
+                elif res.get("error"):
+                    st.error(f"Whisper Error: {res['error']}")
 
-    # ── Handle prompt (from text or voice) ──
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
-        with chat_container:
-            with st.chat_message("user"):
-                st.markdown(prompt)
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-        # Build response — try IBM Granite API first, fall back to smart answers
+        # Build response — try IBM Granite API first, fall back to cached answers
         response = ""
         try:
             from core.granite import chat_response
@@ -142,16 +125,15 @@ with chat_col:
                     response = cached
                     break
 
-        with chat_container:
-            with st.chat_message("assistant"):
-                st.markdown(response)
+        with st.chat_message("assistant"):
+            st.markdown(response)
 
         st.session_state.messages.append({"role": "assistant", "content": response})
 
     st.markdown("""
 <div style="font-family:'Share Tech Mono',monospace;font-size:0.55rem;
             color:#555;text-align:center;margin-top:0.5rem;">
-  Powered by IBM Granite 3.1 &middot; Assisted by IBM Bob &middot; Voice Recognition
+  Powered by IBM Granite 3.1 &middot; Assisted by IBM Bob &middot; Whisper Voice Recognition
 </div>""", unsafe_allow_html=True)
 
 with info_col:

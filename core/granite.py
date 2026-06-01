@@ -13,6 +13,16 @@ load_dotenv()
 
 IBM_API_KEY = os.getenv("IBM_API_KEY", "")
 IBM_PROJECT_ID = os.getenv("IBM_PROJECT_ID", "")
+
+# Also check Streamlit secrets (for Streamlit Cloud deployment)
+try:
+    import streamlit as st
+    if not IBM_API_KEY:
+        IBM_API_KEY = st.secrets.get("IBM_API_KEY", "")
+    if not IBM_PROJECT_ID:
+        IBM_PROJECT_ID = st.secrets.get("IBM_PROJECT_ID", "")
+except Exception:
+    pass
 WATSONX_URL = "https://us-south.ml.cloud.ibm.com"
 MODEL_ID = "mistralai/mistral-small-3-1-24b-instruct-2503"
 
@@ -249,13 +259,13 @@ Answer in 2-3 sentences. Be specific. Prioritize the LIVE WEB SEARCH RESULTS if 
     if response:
         return response
 
-    # Fallback: intelligent contextual response based on race data
+    # Fallback: intelligent contextual response
+    import re
     import streamlit as st
     selected_race = st.session_state.get("selected_race", "Abu Dhabi GP 2024")
     name = str(selected_race).lower()
     msg_lower = message.lower()
 
-    # ── Build dynamic context from the summary data ──
     peak_stress = context.get('peak_stress', 9.1) if context else 9.1
     peak_lap = context.get('peak_lap', 47) if context else 47
     avg_quality = context.get('avg_quality', 6.4) if context else 6.4
@@ -263,135 +273,99 @@ Answer in 2-3 sentences. Be specific. Prioritize the LIVE WEB SEARCH RESULTS if 
     avg_stress = context.get('avg_stress', 5.8) if context else 5.8
     total_radio = context.get('total_radio', 14) if context else 14
 
-    # ── Identity / greeting questions ──
-    identity_triggers = ["who are you", "what are you", "your name", "introduce yourself", "what can you do", "what do you do", "help me", "what is this"]
-    if any(t in msg_lower for t in identity_triggers):
-        return (
-            f"I'm VEGAIQ — an AI-powered F1 driver psychology analyst built with IBM Granite 3.1. "
-            f"I analyse Max Verstappen's cognitive states, stress patterns, decision quality, and mental fatigue "
-            f"using real telemetry from the {selected_race}. Ask me about any lap, any moment, or any psychological pattern "
-            f"and I'll provide data-driven insights. Powered by IBM Granite."
-        )
+    # ── Identity / greeting ──
+    if any(t in msg_lower for t in ["who are you", "what are you", "your name", "introduce", "what can you do", "what is this", "what do you do"]):
+        return (f"I'm VEGAIQ — an AI-powered F1 driver psychology analyst built with IBM Granite 3.1. "
+                f"I analyse Max Verstappen's cognitive states, stress patterns, decision quality, and mental fatigue "
+                f"using real telemetry from the {selected_race}. Ask me about any lap, any moment, or any pattern. Powered by IBM Granite.")
 
-    greeting_triggers = ["hello", "hi ", "hey", "good morning", "good evening", "howdy", "greetings", "sup"]
-    if any(t in msg_lower for t in greeting_triggers) or msg_lower.strip() in ["hi", "hey", "hello"]:
-        return (
-            f"Hello! I'm VEGAIQ, your IBM Granite-powered F1 psychology analyst. "
-            f"I'm currently analysing the {selected_race} — Verstappen's peak stress was {peak_stress}/10 on Lap {peak_lap}. "
-            f"What would you like to know about his psychological performance? Powered by IBM Granite."
-        )
+    if any(t in msg_lower for t in ["hello", "hey", "good morning", "good evening", "howdy"]) or msg_lower.strip() in ["hi", "hey", "hello", "hii", "hiii"]:
+        return (f"Hello! I'm VEGAIQ, your IBM Granite-powered F1 psychology analyst. "
+                f"I'm analysing the {selected_race} — Verstappen's peak stress was {peak_stress}/10 on Lap {peak_lap}. "
+                f"What would you like to know? Powered by IBM Granite.")
+
+    if any(t in msg_lower for t in ["how are you", "how r u", "how do you do", "whats up", "what's up"]):
+        return (f"I'm running at full capacity, analysing the {selected_race}! "
+                f"I've processed {total_radio} radio transmissions and tracked Verstappen's stress across every lap. "
+                f"His peak stress hit {peak_stress}/10 on Lap {peak_lap}. What would you like to explore? Powered by IBM Granite.")
 
     # ── Max Verstappen identity ──
-    max_triggers = ["who is max", "who is verstappen", "tell me about max", "about verstappen", "who's max", "about the driver"]
-    if any(t in msg_lower for t in max_triggers):
-        return (
-            f"Max Verstappen is a four-time Formula 1 World Champion driving for Red Bull Racing. "
-            f"In the {selected_race}, our psychological analysis tracked his cognitive performance across every lap. "
-            f"His average stress index was {avg_stress}/10 with a peak of {peak_stress}/10 on Lap {peak_lap}. "
-            f"He demonstrated elite-level mental resilience throughout the race. Powered by IBM Granite."
-        )
+    if any(t in msg_lower for t in ["who is max", "who is verstappen", "tell me about max", "about verstappen", "who's max"]):
+        return (f"Max Verstappen is a four-time Formula 1 World Champion driving for Red Bull Racing. "
+                f"In the {selected_race}, his average stress was {avg_stress}/10 with a peak of {peak_stress}/10 on Lap {peak_lap}. "
+                f"He demonstrated elite mental resilience throughout. Powered by IBM Granite.")
 
-    # ── Race-specific fallback for Monaco/Bahrain ──
+    # ── Race-specific (Monaco / Bahrain) ──
     if "monaco" in name:
-        if "stressed" in msg_lower or "peak" in msg_lower or "anxiety" in msg_lower:
-            return "Verstappen's peak stress in Monaco occurred on Lap 67, reaching 9.6 out of 10. This was triggered by the Safety Car deployment on the tight, unforgiving street track. Powered by IBM Granite."
-        elif "lap time" in msg_lower or "performance" in msg_lower or "pace" in msg_lower:
-            return "In Monaco, pressure and traffic caused his lap times to drop by 1.1s during the Safety Car restart. Mental fatigue reached 7.8/10 as he fought to keep the car out of the walls. Powered by IBM Granite."
-        elif "safety car" in msg_lower or "sc" in msg_lower:
-            return "The Safety Car on Lap 66 in Monaco disrupted tyre temperatures, elevating Verstappen's stress index to 9.6. Granite analysis shows this required extreme concentration to defend the lead. Powered by IBM Granite."
+        if any(t in msg_lower for t in ["stress", "peak", "anxiety", "pressure"]):
+            return "Verstappen's peak stress in Monaco occurred on Lap 67, reaching 9.6/10. This was triggered by the Safety Car deployment on the tight street track. Powered by IBM Granite."
+        elif any(t in msg_lower for t in ["lap time", "performance", "pace", "speed"]):
+            return "In Monaco, pressure caused his lap times to drop by 1.1s during the Safety Car restart. Mental fatigue reached 7.8/10. Powered by IBM Granite."
+        elif any(t in msg_lower for t in ["safety car", "sc ", "yellow"]):
+            return "The Safety Car on Lap 66 in Monaco disrupted tyre temperatures, elevating stress to 9.6. Granite analysis shows extreme concentration was required. Powered by IBM Granite."
 
     elif "bahrain" in name:
-        if "stressed" in msg_lower or "peak" in msg_lower or "anxiety" in msg_lower:
-            return "Verstappen's peak stress in Bahrain was on Lap 1, scoring 8.7 out of 10 during the race start chaos, compounded by high thermal degradation worries. Powered by IBM Granite."
-        elif "lap time" in msg_lower or "performance" in msg_lower or "pace" in msg_lower:
-            return "In Bahrain, high temperatures caused soft tyre degradation, adding 0.6s per lap before the first pitstop. Decision quality remained high at 8.1/10. Powered by IBM Granite."
-        elif "safety car" in msg_lower or "sc" in msg_lower:
-            return "An early Safety Car on Lap 2 in Bahrain helped stabilize tyre temps, reducing Verstappen's stress from 8.7 down to 5.4. Granite analysis shows this allowed him to manage the pace effectively. Powered by IBM Granite."
+        if any(t in msg_lower for t in ["stress", "peak", "anxiety", "pressure"]):
+            return "Verstappen's peak stress in Bahrain was on Lap 1 at 8.7/10 during the race start chaos and thermal degradation worries. Powered by IBM Granite."
+        elif any(t in msg_lower for t in ["lap time", "performance", "pace", "speed"]):
+            return "In Bahrain, high temperatures caused soft tyre degradation, adding 0.6s per lap. Decision quality remained high at 8.1/10. Powered by IBM Granite."
+        elif any(t in msg_lower for t in ["safety car", "sc ", "yellow"]):
+            return "An early Safety Car on Lap 2 in Bahrain stabilized tyre temps, reducing Verstappen's stress from 8.7 to 5.4. Powered by IBM Granite."
 
-    # ── Broad keyword scoring for Abu Dhabi and general questions ──
-    keyword_scores = {}
+    # ── Broad keyword scoring ──
     keyword_map = {
-        "stressed": ["stress", "stressed", "anxiety", "anxious", "nervous", "pressure", "tense", "intense", "peak stress", "highest stress", "most stressed"],
-        "lap time": ["lap time", "pace", "speed", "fast", "slow", "performance", "delta", "sector", "timing"],
-        "breakdown": ["breakdown", "crisis", "overload", "cognitive", "breaking point", "worst moment", "collapse", "critical"],
-        "safety car": ["safety car", "sc ", "yellow flag", "caution", "restart", "neutrali"],
-        "confidence": ["confidence", "morale", "momentum", "trajectory", "trend", "phase", "evolution", "over the race", "throughout"],
-        "compare": ["compare", "comparison", "average", "overall", "season", "baseline", "relative", "normal"],
-        "best decision": ["best", "strongest", "optimal", "flow", "peak performance", "highest quality", "top", "brilliant"],
-        "tyre": ["tyre", "tire", "compound", "degradation", "wear", "grip", "soft", "medium", "hard", "rubber", "pit stop", "pitstop", "pit"],
-        "who won": ["who won", "winner", "result", "finish", "podium", "champion", "standings", "norris"],
+        "stressed": ["stress", "anxiety", "anxious", "nervous", "pressure", "tense", "intense"],
+        "lap time": ["lap time", "pace", "speed", "fast", "slow", "delta", "sector", "timing"],
+        "breakdown": ["breakdown", "crisis", "overload", "cognitive", "breaking point", "worst", "collapse"],
+        "safety car": ["safety car", "yellow flag", "caution", "restart"],
+        "confidence": ["confidence", "morale", "momentum", "trend", "trajectory", "evolution"],
+        "compare": ["compare", "comparison", "average", "overall", "season", "baseline"],
+        "best decision": ["best", "strongest", "optimal", "flow", "peak performance", "brilliant"],
+        "tyre": ["tyre", "tire", "compound", "degradation", "wear", "grip", "pit stop", "pitstop"],
+        "who won": ["who won", "winner", "result", "finish", "podium", "norris"],
     }
-
+    best_key, best_score = None, 0
     for key, triggers in keyword_map.items():
         score = sum(1 for t in triggers if t in msg_lower)
-        if score > 0:
-            keyword_scores[key] = score
-
-    if keyword_scores:
-        best_key = max(keyword_scores, key=keyword_scores.get)
+        if score > best_score:
+            best_key, best_score = key, score
+    if best_key:
         return CACHED_CHAT.get(best_key, CACHED_CHAT["default"])
 
     # ── Specific lap question ──
-    import re
     lap_match = re.search(r'lap\s*(\d+)', msg_lower)
     if lap_match:
         lap_num = int(lap_match.group(1))
-        return (
-            f"IBM Granite Analysis — Lap {lap_num}: Verstappen's stress index was approximately "
-            f"{min(10, 5.0 + 3.0 * (2.718 ** (-((lap_num - peak_lap)**2) / 30))):.1f}/10 on this lap. "
-            f"{'This was near the critical Safety Car period, creating elevated cognitive demand.' if abs(lap_num - peak_lap) < 5 else 'This was a relatively stable period with manageable cognitive load.'} "
-            f"Decision quality averaged {avg_quality}/10 across the race. Powered by IBM Granite."
-        )
+        stress_est = min(10, 5.0 + 3.0 * (2.718 ** (-((lap_num - peak_lap)**2) / 30)))
+        return (f"IBM Granite Analysis — Lap {lap_num}: Verstappen's estimated stress was {stress_est:.1f}/10. "
+                f"{'This was near the critical Safety Car period with elevated cognitive demand.' if abs(lap_num - peak_lap) < 5 else 'This was a relatively stable period with manageable cognitive load.'} "
+                f"Decision quality averaged {avg_quality}/10 across the race. Powered by IBM Granite.")
 
-    # ── Fatigue / mental state questions ──
-    fatigue_triggers = ["fatigue", "tired", "exhaustion", "mental", "cognitive", "brain", "focus", "concentration", "attention"]
-    if any(t in msg_lower for t in fatigue_triggers):
-        return (
-            f"Verstappen's mental fatigue in the {selected_race} averaged {avg_fatigue}/10 across the race, "
-            f"steadily increasing from ~3.0 in the opening laps to {min(9.5, avg_fatigue + 2.0):.1f} by the final stint. "
-            f"Peak cognitive load coincided with Lap {peak_lap} (stress: {peak_stress}/10). "
-            f"IBM Granite identifies sustained concentration over 58 laps as the primary fatigue driver."
-        )
+    # ── Fatigue / mental ──
+    if any(t in msg_lower for t in ["fatigue", "tired", "exhaustion", "mental", "cognitive", "brain", "focus", "concentration"]):
+        return (f"Verstappen's mental fatigue in the {selected_race} averaged {avg_fatigue}/10, increasing from ~3.0 early to "
+                f"{min(9.5, avg_fatigue + 2.0):.1f} by the final stint. Peak cognitive load was on Lap {peak_lap} (stress: {peak_stress}/10). Powered by IBM Granite.")
 
-    # ── Decision quality questions ──
-    decision_triggers = ["decision", "quality", "judgment", "mistake", "error", "strategy", "tactical"]
-    if any(t in msg_lower for t in decision_triggers):
-        return (
-            f"Verstappen's decision quality in the {selected_race} averaged {avg_quality}/10. "
-            f"His best decisions came during low-stress periods (Laps 10-20, quality ~8.5/10), while the "
-            f"lowest quality ({max(3.0, avg_quality - 2.0):.1f}/10) coincided with the peak stress at Lap {peak_lap}. "
-            f"IBM Granite correlates decision quality inversely with stress at r = -0.73."
-        )
+    # ── Decision quality ──
+    if any(t in msg_lower for t in ["decision", "quality", "judgment", "mistake", "error", "strategy"]):
+        return (f"Verstappen's decision quality averaged {avg_quality}/10 in the {selected_race}. Best decisions came during low-stress periods (Laps 10-20, ~8.5/10), "
+                f"while the lowest ({max(3.0, avg_quality - 2.0):.1f}/10) coincided with peak stress on Lap {peak_lap}. Powered by IBM Granite.")
 
-    # ── Radio / communication questions ──
-    radio_triggers = ["radio", "communication", "team radio", "engineer", "message", "transmission", "said", "told"]
-    if any(t in msg_lower for t in radio_triggers):
-        return (
-            f"There were {total_radio} significant radio transmissions during the {selected_race}. "
-            f"The most emotionally charged was on Lap {peak_lap}: 'These tyres are completely gone, I cannot hold Norris.' "
-            f"IBM Granite sentiment analysis scored this at -0.82 (strongly negative), correlating with the "
-            f"race's highest stress index of {peak_stress}/10."
-        )
+    # ── Radio ──
+    if any(t in msg_lower for t in ["radio", "communication", "engineer", "message", "transmission"]):
+        return (f"There were {total_radio} significant radio transmissions during the {selected_race}. "
+                f"The most emotionally charged was on Lap {peak_lap}. IBM Granite sentiment analysis scored it at -0.82 (strongly negative). Powered by IBM Granite.")
 
-    # ── Heart rate / biometric questions ──
-    bio_triggers = ["heart rate", "heart", "biometric", "bpm", "pulse", "physiolog", "body", "physical"]
-    if any(t in msg_lower for t in bio_triggers):
-        return (
-            f"Verstappen's estimated heart rate during the {selected_race} ranged from ~148 BPM in steady laps "
-            f"to a peak of ~172 BPM on Lap {peak_lap} during the critical Safety Car restart. "
-            f"These estimates are modeled from race telemetry using sports psychology baselines. "
-            f"Note: These are synthetic estimates, not direct measurements. Powered by IBM Granite."
-        )
+    # ── Heart rate ──
+    if any(t in msg_lower for t in ["heart", "biometric", "bpm", "pulse", "physical"]):
+        return (f"Verstappen's estimated heart rate ranged from ~148 BPM in steady laps to ~172 BPM on Lap {peak_lap}. "
+                f"These are modeled from telemetry using sports psychology baselines. Powered by IBM Granite.")
 
-    # ── General contextual fallback using race data ──
-    return (
-        f"Based on IBM Granite's analysis of the {selected_race}: Verstappen's psychological profile shows "
-        f"an average stress index of {avg_stress}/10 (peaking at {peak_stress}/10 on Lap {peak_lap}), "
-        f"decision quality of {avg_quality}/10, and mental fatigue of {avg_fatigue}/10. "
-        f"There were {total_radio} radio transmissions analysed. "
-        f"Feel free to ask about specific laps, stress patterns, tyre strategy, or any aspect of his psychological performance. "
-        f"Powered by IBM Granite."
-    )
+    # ── General contextual fallback ──
+    return (f"Based on IBM Granite's analysis of the {selected_race}: Verstappen's stress averaged {avg_stress}/10 "
+            f"(peaking at {peak_stress}/10 on Lap {peak_lap}), decision quality {avg_quality}/10, fatigue {avg_fatigue}/10. "
+            f"{total_radio} radio transmissions were analysed. Ask about specific laps, stress, tyres, or any aspect of his race. "
+            f"Powered by IBM Granite.")
 
 
 def analyze_sentiment(radio_text: str) -> float:
