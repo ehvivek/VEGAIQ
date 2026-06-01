@@ -233,12 +233,12 @@ def get_race_data(race_name: str = "Abu Dhabi GP 2024") -> pd.DataFrame:
     if df.empty:
         df = _generate_fallback_data(race_name)
 
-    # Train models if not done yet
+    # Train models (force retrain to avoid stale feature mismatches)
     try:
-        train_models()
+        train_models(force=True)
         df = predict_all_laps(df)
     except Exception as e:
-        st.warning(f"ML models not available: {e}")
+        print(f"[PitMind] ML models not available: {e}")
         # Assign realistic fallback scores
         np.random.seed(42)
         n = len(df)
@@ -253,7 +253,7 @@ def get_race_data(race_name: str = "Abu Dhabi GP 2024") -> pd.DataFrame:
     try:
         df = enrich_dataframe(df)
     except Exception as e:
-        st.warning(f"Biometrics not computed: {e}")
+        print(f"[PitMind] Biometrics not computed: {e}")
 
     return df
 
