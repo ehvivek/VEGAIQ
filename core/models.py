@@ -196,6 +196,12 @@ def train_models(force: bool = False):
         print("[Models] All models already trained. Loading from disk.")
         return
 
+    # Delete stale models to avoid feature mismatch
+    for p in [STRESS_MODEL_PATH, QUALITY_MODEL_PATH, FATIGUE_MODEL_PATH]:
+        if p.exists():
+            p.unlink()
+            print(f"[Models] Deleted stale model: {p}")
+
     print("[Models] Generating training data...")
     df = generate_training_data(2000)
 
@@ -257,10 +263,23 @@ def load_models():
     """Load all 3 trained models from disk."""
     global _stress_model, _quality_model, _fatigue_model
     if not (STRESS_MODEL_PATH.exists() and QUALITY_MODEL_PATH.exists() and FATIGUE_MODEL_PATH.exists()):
-        train_models()
+        train_models(force=True)
+
     _stress_model = joblib.load(STRESS_MODEL_PATH)
     _quality_model = joblib.load(QUALITY_MODEL_PATH)
     _fatigue_model = joblib.load(FATIGUE_MODEL_PATH)
+
+    # Validate loaded models have correct features
+    try:
+        test_row = pd.DataFrame([{f: 0.0 for f in STRESS_FEATURES}])
+        _stress_model.predict(test_row)
+    except Exception:
+        print("[Models] Feature mismatch detected — forcing retrain...")
+        train_models(force=True)
+        _stress_model = joblib.load(STRESS_MODEL_PATH)
+        _quality_model = joblib.load(QUALITY_MODEL_PATH)
+        _fatigue_model = joblib.load(FATIGUE_MODEL_PATH)
+
     print("[Models] All 3 models loaded.")
 
 
